@@ -49,7 +49,7 @@ class Drivetrain:
         xSpeed: float,
         ySpeed: float,
         rot: float,
-        fieldRelative: bool,
+        fieldRelative: bool,  # Ensure field-relative mode is enabled by default
         periodSeconds: float,
     ) -> None:
         """Method to drive the robot using joystick info.
@@ -71,11 +71,11 @@ class Drivetrain:
         swerveModuleStates = self.kinematics.toSwerveModuleStates(
             wpimath.kinematics.ChassisSpeeds.discretize(chassisSpeeds, periodSeconds)
         )
-        
+
         wpimath.kinematics.SwerveDrive4Kinematics.desaturateWheelSpeeds(
             swerveModuleStates, kMaxSpeed
         )
-        
+
         self.frontLeft.setDesiredState(swerveModuleStates[0])
         self.frontRight.setDesiredState(swerveModuleStates[1])
         self.backLeft.setDesiredState(swerveModuleStates[2])
@@ -83,29 +83,29 @@ class Drivetrain:
 
         self.logEncoderValues()
 
-
     def logEncoderValues(self) -> None:
         """Logs the encoder values for each swerve module."""
-        #wpilib.SmartDashboard.putNumber("Front Left Drive Encoder", round(self.frontLeft.driveEncoder.getPosition(), 4))
-        wpilib.SmartDashboard.putNumber("Front Left Turning Encoder", self.frontLeft.turningEncoder.getDistance()*10000)
+        # Log encoder values for debugging
+        # wpilib.SmartDashboard.putNumber("Front Left Turning Encoder", self.frontLeft.turningEncoder.getDistance()*10000)
+        # wpilib.SmartDashboard.putNumber("Front Left Turning Encoder num of turns", self.frontLeft.turningEncoder.get())
+        # wpilib.SmartDashboard.putNumber("Front Right Turning Encoder", self.frontRight.turningEncoder.getDistance()*10000)
+        # wpilib.SmartDashboard.putNumber("Front Right Turning Encoder num of turns", self.frontRight.turningEncoder.get())
+        # wpilib.SmartDashboard.putNumber("Back Left Turning Encoder", self.backLeft.turningEncoder.getDistance()*10000)
+        # wpilib.SmartDashboard.putNumber("Back Left Turning Encoder num of turns", self.backLeft.turningEncoder.get())
+        # wpilib.SmartDashboard.putNumber("Back Right Turning Encoder", self.backRight.turningEncoder.getDistance()*10000)
+        # wpilib.SmartDashboard.putNumber("Back Right Turning Encoder num of turns", self.backRight.turningEncoder.get())
 
-
-        wpilib.SmartDashboard.putNumber("Front Left Turning Encoder num of turns", self.frontLeft.turningEncoder.get())
-
-        #wpilib.SmartDashboard.putNumber("Front Right Drive Encoder", round(self.frontRight.driveEncoder.getPosition(), 4))
-        wpilib.SmartDashboard.putNumber("Front Right Turning Encoder", self.frontRight.turningEncoder.getDistance()*10000)
-
-        wpilib.SmartDashboard.putNumber("Front Right Turning Encoder num of turns", self.frontRight.turningEncoder.get())
-
-        #wpilib.SmartDashboard.putNumber("Back Left Drive Encoder", round(self.backLeft.driveEncoder.getPosition(), 4))
-        wpilib.SmartDashboard.putNumber("Back Left Turning Encoder", self.backLeft.turningEncoder.getDistance()*10000)
-
-        wpilib.SmartDashboard.putNumber("Back Left Turning Encoder num of turns", self.backLeft.turningEncoder.get())
-
-        #wpilib.SmartDashboard.putNumber("Back Right Drive Encoder", round(self.backRight.driveEncoder.getPosition(), 4))
-        wpilib.SmartDashboard.putNumber("Back Right Turning Encoder", self.backRight.turningEncoder.getDistance()*10000)
-
-        wpilib.SmartDashboard.putNumber("Back Right Turning Encoder num of turns", self.backRight.turningEncoder.get())
+    def resetEncoders(self) -> None:
+        """Resets the encoders for all swerve modules."""
+        self.frontLeft.driveEncoder.setPosition(0)
+        self.frontRight.driveEncoder.setPosition(0)
+        self.backLeft.driveEncoder.setPosition(0)
+        self.backRight.driveEncoder.setPosition(0)
+        
+        self.frontLeft.turningEncoder.reset()
+        self.frontRight.turningEncoder.reset()
+        self.backLeft.turningEncoder.reset()
+        self.backRight.turningEncoder.reset()
 
     def updateOdometry(self) -> None:
         """Updates the field relative position of the robot."""
@@ -118,8 +118,6 @@ class Drivetrain:
                 self.backRight.getPosition(),
             ),
         )
-
-
 
     def rotateWheels(self, angle: float) -> None:
         """Rotates all swerve modules to the specified angle."""
