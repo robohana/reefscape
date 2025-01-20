@@ -23,8 +23,11 @@ class SwerveModule:
         :param invertDrive: Whether to invert the drive motor direction.
         :param invertTurn: Whether to invert the turning motor direction.
         """
-        self.driveMotor = rev.CANSparkMax(driveMotorChannel, rev.CANSparkLowLevel.MotorType.kBrushless)
-        self.turningMotor = rev.CANSparkMax(turningMotorChannel, rev.CANSparkLowLevel.MotorType.kBrushless)
+        # self.driveMotor = rev.CANSparkMax(driveMotorChannel, rev.CANSparkLowLevel.MotorType.kBrushless)
+        # self.turningMotor = rev.CANSparkMax(turningMotorChannel, rev.CANSparkLowLevel.MotorType.kBrushless)
+
+        self.driveMotor = rev.SparkMax(driveMotorChannel, rev.SparkLowLevel.MotorType.kBrushless)
+        self.turningMotor = rev.SparkMax(turningMotorChannel, rev.SparkLowLevel.MotorType.kBrushless)
 
 
         self.driveEncoder = self.driveMotor.getEncoder()
@@ -45,6 +48,7 @@ class SwerveModule:
 
         self.driveEncoder.setPositionConversionFactor(math.tau * kWheelRadius / kEncoderResolution)
         self.turningEncoder.setDistancePerRotation(math.tau / kEncoderResolution)
+
 
         self.turningPIDController.enableContinuousInput(-math.pi, math.pi)
 
@@ -86,4 +90,3 @@ class SwerveModule:
 
         self.driveMotor.setVoltage(driveOutput + driveFeedforward)
         self.turningMotor.setVoltage(turnOutput + turnFeedforward)
-
