@@ -1,165 +1,154 @@
 import math
 import wpilib
-import wpimath.geometry
 import wpimath.kinematics
-import swervemodule
+import wpimath.geometry
+import wpimath.controller
+import wpimath.trajectory
+import wpimath.units
 import rev
-from wpilib import DataLogManager, DriverStation
- 
-#from navx import AHRS  # Import the AHRS class from the navX library
 
-kMaxSpeed = 3.0  # 3 meters per second
-kMaxAngularSpeed = math.pi  # 1/2 rotation per second
+# Constants for the swerve module - JL
+kWheelRadius = 0.0508
+kEncoderResolution = 4096
+kModuleMaxAngularVelocity = math.pi
+kModuleMaxAngularAcceleration = math.tau
+kJoystickDeadband = 0.1  # Deadband for joystick inputs - JL
+kDistancePerRotation = math.tau / kEncoderResolution
+kpositionConversionFactor = math.tau * kWheelRadius / kEncoderResolution
 
-class Drivetrain:
-    """Represents a swerve drive style drivetrain. - JL"""
 
-    def __init__(self) -> None:
-        self.frontLeftLocation = wpimath.geometry.Translation2d(0.381, 0.381)
-        self.frontRightLocation = wpimath.geometry.Translation2d(0.381, -0.381)
-        self.backLeftLocation = wpimath.geometry.Translation2d(-0.381, 0.381)
-        self.backRightLocation = wpimath.geometry.Translation2d(-0.381, -0.381)
+class SwerveModule:
+    def __init__(self, driveMotorChannel: int, turningMotorChannel: int, turningEncoderChannel: int, invertDrive: bool = False, invertTurn: bool = False) -> None:
+        """Constructs a SwerveModule with a drive motor, turning motor, drive encoder, and turning encoder. - JL
 
-        self.frontLeft = swervemodule.SwerveModule(20, 31, 3, setInverted = False)
-        self.frontRight = swervemodule.SwerveModule(23, 22, 0, setInverted = True)
-        self.backLeft = swervemodule.SwerveModule(24, 30, 2, setInverted = False)
-        self.backRight = swervemodule.SwerveModule(21, 29, 1, setInverted = False)
-
-        self.gyro = wpilib.ADXRS450_Gyro()
-       
-        self.gyro.reset()
-
-        self.kinematics = wpimath.kinematics.SwerveDrive4Kinematics(
-            self.frontLeftLocation,
-            self.frontRightLocation,
-            self.backLeftLocation,
-            self.backRightLocation,
-        )
-
-        self.odometry = wpimath.kinematics.SwerveDrive4Odometry(
-            self.kinematics,
-            self.gyro.getRotation2d(),
-            (
-                self.frontLeft.getPosition(),
-                self.frontRight.getPosition(),
-                self.backLeft.getPosition(),
-                self.backRight.getPosition(),
-            ),
-        )
-
-        self.timer = wpilib.Timer()
-        self.timer.start()
-
-        wpilib.DataLogManager.start()
-        self.log = wpilib.DataLogManager.getLog()
-
-    def drive(
-        self,
-        xSpeed: float,
-        ySpeed: float,
-        rot: float,
-        fieldRelative: bool,  # Ensure field-relative mode is enabled by default - JL
-        periodSeconds: float,
-    ) -> None:
-        """Method to drive the robot using joystick info. - JL
-
-        :param xSpeed: Speed of the robot in the x direction (forward).
-        :param ySpeed: Speed of the robot in the y direction (sideways).
-        :param rot: Angular rate of the robot.
-        :param fieldRelative: Whether the provided x and y speeds are relative to the field.
-        :param periodSeconds: Time
+        :param driveMotorChannel: PWM output for the drive motor.
+        :param turningMotorChannel: PWM output for the turning motor.
+        :param turningEncoderChannel: Analog input for the turning encoder.
+        :param invertDrive: Whether to invert the drive motor direction.
+        :param invertTurn: Whether to invert the turning motor direction.
         """
-        if fieldRelative:
-            # Transform the desired motion vector from robot-relative to field-relative - JL
-            chassisSpeeds = wpimath.kinematics.ChassisSpeeds.fromFieldRelativeSpeeds(
-                xSpeed, ySpeed, rot, self.gyro.getRotation2d()
-            )
-        else:
-            chassisSpeeds = wpimath.kinematics.ChassisSpeeds(xSpeed, ySpeed, rot)
+        self.driveMotor = rev.SparkBase(driveMotorChannel, rev.SparkLowLevel.MotorType.kBrushless, rev.SparkLowLevel.SparkModel.kSparkMax)
+        self.turningMotor = rev.SparkBase(turningMotorChannel, rev.SparkLowLevel.MotorType.kBrushless, rev.SparkLowLevel.SparkModel.kSparkMax)
 
-        swerveModuleStates = self.kinematics.toSwerveModuleStates(
-            wpimath.kinematics.ChassisSpeeds.discretize(chassisSpeeds, periodSeconds)
-        )
+        self.driveMotor.setInverted(invertDrive)
+        self.turningMotor.setInverted(invertTurn)
 
-        wpimath.kinematics.SwerveDrive4Kinematics.desaturateWheelSpeeds(
-            swerveModuleStates, kMaxSpeed
-        )
+        driveMotorConfig = rev.SparkMaxConfig()
+        turnMotorConfig = rev.SparkMaxConfig()
 
-        self.frontLeft.setDesiredState(swerveModuleStates[0])
-        self.frontRight.setDesiredState(swerveModuleStates[1])
-        self.backLeft.setDesiredState(swerveModuleStates[2])
-        self.backRight.setDesiredState(swerveModuleStates[3])
+        driveMotorConfig.setIdleMode(rev.SparkBaseConfig.IdleMode.kBrake)
+        turnMotorConfig.setIdleMode(rev.SparkBaseConfig.IdleMode.kBrake)
 
-        self.resetEncoders()
+        self.driveMotor.configure(driveMotorConfig, rev.SparkMax.ResetMode.kResetSafeParameters, rev.SparkMax.PersistMode.kPersistParameters)
+        self.turningMotor.configure(turnMotorConfig, rev.SparkMax.ResetMode.kResetSafeParameters, rev.SparkMax.PersistMode.kPersistParameters)
 
-        # Telemetry - LC 1/30/25
-        self.showInverted()
-        self.dataManager()
+        self.driveEncoder = self.driveMotor.getEncoder()
+        self.turningEncoder = wpilib.AnalogEncoder(turningEncoderChannel)
 
-    def showInverted(self) -> None:
-        FR_isInverted = self.frontRight.driveMotor.getInverted() 
-        FL_isInverted = self.frontLeft.driveMotor.getInverted() 
-        BR_isInverted = self.backRight.driveMotor.getInverted() 
-        BL_isInverted = self.backLeft.driveMotor.getInverted()
-
-        # Check if half of a second has passed - LC 1/30/25
-        # Test 1, add TIMER to control data flow - LC 1/30/25
-        if self.timer.hasElapsed(0.5):
-            # Reset the timer to count another 5 seconds, this is how you get it to loop every 5 seconds - LC 1/30/25
-            # Removed right now because i only want to know at the start of the op which motors are inverted - LC 1/30/25
-            #self.timer.reset()           
-            """Logs the motor invertion. Shows as a boolean value or green or red. - LC 1/30/25"""
-            # Log if motor is inverted  for debugging
-            wpilib.SmartDashboard.putBoolean(f"Front Right Inverted?", FR_isInverted)
-            #wpilib.SmartDashboard.putBoolean(f"Front Left Inverted?", FL_isInverted)
-            #wpilib.SmartDashboard.putBoolean(f"Back Right Inverted?", BR_isInverted)
-            #wpilib.SmartDashboard.putBoolean(f"Back Left Inverted?", BL_isInverted)
-        
-
-        # Test 3, see if this can use the DATALOGMANAGER to get out data instead of printing and causing the RIO CPU to spike
-        # produced a very weird repeating "Front Left Inverted Data Log Manager: False" in my terminal after I would test the 
-        # code - LC 1/30/25
-        #wpilib.DataLogManager.log(f"Front Left Inverted Data Log Manager: {FL_isInverted}")
-
-
-    def resetEncoders(self) -> None:
-        """Resets the encoders for all swerve modules. - JL"""
-        self.frontLeft.driveEncoder.setPosition(0)
-        self.frontRight.driveEncoder.setPosition(0)
-        self.backLeft.driveEncoder.setPosition(0)
-        self.backRight.driveEncoder.setPosition(0)
-        
-        '''self.frontLeft.turningEncoder.reset()
-        self.frontRight.turningEncoder.reset()
-        self.backLeft.turningEncoder.reset()
-        self.backRight.turningEncoder.reset()'''
-
-    def updateOdometry(self) -> None:
-        """Updates the field relative position of the robot. - JL"""
-        self.odometry.update(
-            self.gyro.getRotation2d(),
-            (
-                self.frontLeft.getPosition(),
-                self.frontRight.getPosition(),
-                self.backLeft.getPosition(),
-                self.backRight.getPosition(),
+        #TODO: Tune the drive and turn PID controllers - LC 1/30/25
+        # Initialize PID controllers with initial gains - LC 1/30/25
+        self.drivePIDController = wpimath.controller.PIDController(0.01, 0, 0)
+        self.turningPIDController = wpimath.controller.ProfiledPIDController(
+            0.08, 0, 0,  # Adjusted PID gains - JL
+            wpimath.trajectory.TrapezoidProfile.Constraints(
+                kModuleMaxAngularVelocity,
+                kModuleMaxAngularAcceleration,
             ),
         )
 
-    def rotateWheels(self, angle: float) -> None:
-        """Rotates all swerve modules to the specified angle. - JL"""
-        desiredState = wpimath.kinematics.SwerveModuleState(0, wpimath.geometry.Rotation2d.fromDegrees(angle))
-        self.frontLeft.setDesiredState(desiredState)
-        self.frontRight.setDesiredState(desiredState)
-        self.backLeft.setDesiredState(desiredState)
-        self.backRight.setDesiredState(desiredState)
+        #TODO: Tune the drive and turn feed forward values - LC 1/30/25
+        self.driveFeedforward = wpimath.controller.SimpleMotorFeedforwardMeters(0.1, 1)
+        self.turnFeedforward = wpimath.controller.SimpleMotorFeedforwardMeters(0.1, 0.227)
 
-    def autonomousRoutine(self) -> None:
-        """Simple autonomous routine that rotates wheels 90 degrees to the right and then back to 0. - JL"""
-        self.rotateWheels(90)
+        #rev.EncoderConfig.positionConversionFactor(math.tau * kWheelRadius / kEncoderResolution)
+        #self.turningEncoder.setDistancePerRotation(math.tau / kEncoderResolution)
 
-    def dataManager(self) -> None :
-        """This appends the data into the internal log, which is stored on the RoboRIO. This is all of the DS controls and 
-        joystick data - LC 1/30/25"""
-        # Record both DS control and joystick data - LC 1/30/25
-        DriverStation.startDataLog(DataLogManager.getLog())
+        self.turningPIDController.enableContinuousInput(-math.pi, math.pi)
+
+
+    def getState(self) -> wpimath.kinematics.SwerveModuleState:
+        """Returns the current state of the module. - JL
+
+        :returns: The current state of the module.
+        """
+        return wpimath.kinematics.SwerveModuleState(
+            self.driveEncoder.getPosition(),
+            wpimath.geometry.Rotation2d(self.turningEncoder.get() * kDistancePerRotation),
+        )
+
+    def getPosition(self) -> wpimath.kinematics.SwerveModulePosition:
+        """Returns the current position of the module. - JL"""
+        return wpimath.kinematics.SwerveModulePosition(
+            self.driveEncoder.getPosition() * kpositionConversionFactor,
+            wpimath.geometry.Rotation2d(self.turningEncoder.get() * kDistancePerRotation),
+        )
+
+        #TODO: Rewrite this whole funtion - JL 1/28/25
+    '''def setDesiredState(self, desiredState: wpimath.kinematics.SwerveModuleState) -> None:
+        """Sets the desired state for the swerve module."""
+    
+        # Get current module rotation from encoder
+        angle = wpimath.geometry.Rotation2d(self.turningEncoder.get() * DistancePerRotation)
+
+        # Optimize the target state to prevent unnecessary rotation
+        #optimizedState = wpimath.kinematics.SwerveModuleState.optimize(desiredState, currentRotation)
+       
+        # Calculate angle error for smooth turning (avoid small unnecessary turns)
+        #angleError = optimizedState.angle.minus(currentRotation)
+        #optimizedSpeed = angle.speed * angleError.cos()
+        speed = (math.tau * kWheelRadius) / kEncoderResolution
+
+        # Compute drive motor output using PID and feedforward control
+        driveOutput = self.drivePIDController.calculate(
+            self.driveEncoder.getPosition() * positionConversionFactor, desiredState.speed
+        )
+        driveFeedforward = self.driveFeedforward.calculate(speed)
+
+        # Compute turn motor output using PID and feedforward control
+        turnOutput = self.turningPIDController.calculate(
+            self.turningEncoder.get() * DistancePerRotation, desiredState.angle.radians()
+        )
+        turnFeedforward = self.turnFeedforward.calculate(self.turningPIDController.getSetpoint().velocity)
+
+        # Apply calculated voltages to motors
+        self.driveMotor.setVoltage(driveOutput + driveFeedforward)
+        self.turningMotor.setVoltage(turnOutput + turnFeedforward)'''
+
+    def setDesiredState(
+        self, desiredState: wpimath.kinematics.SwerveModuleState
+        ) -> None:
+        """Sets the desired state for the module.
+
+        :param desiredState: Desired state with speed and angle.
+        """
+
+        angle = wpimath.geometry.Rotation2d(self.turningEncoder.get() * kDistancePerRotation)
+
+        # Optimize the reference state to avoid spinning further than 90 degrees - LC 1/28/25
+        desiredState.optimize(angle)
+
+        # Scale speed by cosine of angle error. This scales down movement perpendicular to the desired
+        # direction of travel that can occur when modules change directions. This results in smoother
+        # driving. - LC 1/28/25
+        desiredState.cosineScale(angle)
+
+        # Calculate the drive output from the drive PID controller. - LC 1/28/25
+        driveOutput = self.drivePIDController.calculate(
+            self.driveEncoder.getPosition() * kpositionConversionFactor, desiredState.speed
+        )
+
+        driveFeedforward = self.driveFeedforward.calculate(desiredState.speed)
+
+        # Calculate the turning motor output from the turning PID controller. - LC 1/28/25
+        turnOutput = self.turningPIDController.calculate(
+            self.turningEncoder.get() * kDistancePerRotation, desiredState.angle.radians()
+        )
+
+        turnFeedforward = self.turnFeedforward.calculate(
+            self.turningPIDController.getSetpoint().velocity
+        )
+
+        self.driveMotor.setVoltage(driveOutput + driveFeedforward)
+        self.turningMotor.setVoltage(turnOutput + turnFeedforward)
+
+   
