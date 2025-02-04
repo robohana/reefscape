@@ -5,6 +5,7 @@ import wpimath.kinematics
 import swervemodule
 import rev
 from wpilib import DataLogManager, DriverStation
+from constants import RobotConstants
  
 #from navx import AHRS  # Import the AHRS class from the navX library
 
@@ -15,15 +16,44 @@ class Drivetrain:
     """Represents a swerve drive style drivetrain. - JL"""
 
     def __init__(self) -> None:
+
+
         self.frontLeftLocation = wpimath.geometry.Translation2d(0.381, 0.381)
         self.frontRightLocation = wpimath.geometry.Translation2d(0.381, -0.381)
         self.backLeftLocation = wpimath.geometry.Translation2d(-0.381, 0.381)
         self.backRightLocation = wpimath.geometry.Translation2d(-0.381, -0.381)
 
-        self.frontLeft = swervemodule.SwerveModule(20, 31, 3, invertDrive = False, invertTurn = False)
-        self.frontRight = swervemodule.SwerveModule(23, 22, 0, invertDrive = True, invertTurn = True)
-        self.backLeft = swervemodule.SwerveModule(24, 30, 2, invertDrive = False, invertTurn = False)
-        self.backRight = swervemodule.SwerveModule(21, 29, 1, invertDrive = True, invertTurn = False)
+        self.frontLeft = swervemodule.SwerveModule(RobotConstants.kfrontLeftDriveID, 
+                                                   RobotConstants.kfrontLeftTurnID, 
+                                                   RobotConstants.frontLeftAbsoluteEncoderId, 
+                                                   RobotConstants.frontLeftDrivingMotorReversed, 
+                                                   RobotConstants.frontLeftTurningMotorReversed, 
+                                                   RobotConstants.frontLeftAbsoluteEncoderOffset, 
+                                                   RobotConstants.frontLeftAbsoluteEncoderReversed)
+        
+        self.frontRight = swervemodule.SwerveModule(RobotConstants.kfrontRightDriveID, 
+                                                    RobotConstants.kfrontRightTurnID, 
+                                                    RobotConstants.frontRightAbsoluteEncoderId, 
+                                                    RobotConstants.frontRightDrivingMotorReversed, 
+                                                    RobotConstants.frontRightTurningMotorReversed,
+                                                    RobotConstants.frontRightAbsoluteEncoderOffset,
+                                                    RobotConstants.frontRightAbsoluteEncoderReversed)
+        
+        self.backLeft = swervemodule.SwerveModule(RobotConstants.kbackLeftDriveID, 
+                                                  RobotConstants.kbackLeftTurnID, 
+                                                  RobotConstants.backLeftAbsoluteEncoderId, 
+                                                  RobotConstants.backLeftDrivingMotorReversed, 
+                                                  RobotConstants.backLeftTurningMotorReversed, 
+                                                  RobotConstants.backLeftAbsoluteEncoderOffset,
+                                                  RobotConstants.backLeftAbsoluteEncoderReversed)
+        
+        self.backRight = swervemodule.SwerveModule(RobotConstants.kbackRightDriveID, 
+                                                   RobotConstants.kbackRightTurnID, 
+                                                   RobotConstants.backRightAbsoluteEncoderId, 
+                                                   RobotConstants.backRightDrivingMotorReversed, 
+                                                   RobotConstants.backRightTurningMotorReversed, 
+                                                   RobotConstants.backRightAbsoluteEncoderOffset,
+                                                   RobotConstants.backRightAbsoluteEncoderReversed)
 
         self.gyro = wpilib.ADXRS450_Gyro()
        
