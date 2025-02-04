@@ -8,9 +8,6 @@ import wpimath.units
 import rev
 from constants import ModuleConstants
 
-
-
-
 class SwerveModule:
     def __init__(self, driveMotorChannel: int, turningMotorChannel: int, absEncoderChannel: int, invertDrive: bool, invertTurn: bool, absouteEncoderOffset: float, absoluteEncoderReversed: bool) -> None:
         """Constructs a SwerveModule with a drive motor, turning motor, drive encoder, and turning encoder. - JL
@@ -91,89 +88,88 @@ class SwerveModule:
 
 
     def getState(self) -> wpimath.kinematics.SwerveModuleState:
-        """Returns the current state of the module. - JL
-
-        :returns: The current state of the module.
-        """
-        return wpimath.kinematics.SwerveModuleState(
-            self.driveEncoder.getPosition(), #TODO: Should this be getVelocity?? - JL on 2/3/25
-            wpimath.geometry.Rotation2d(self.getAbsoluteEncoderRad()),
+        """Returns the current state of the module. - JL"""
+        speed = self.driveEncoder.getVelocity() #getVlocity here providesreal-time speed of wheeel which is what we need not total distance traveled. - LC 2/4/25
+        angle = wpimath.geometry.Rotation2d(
+            self.getAbsoluteEncoderRad()
         )
+        return wpimath.kinematics.SwerveModuleState(speed, angle)
 
     def getPosition(self) -> wpimath.kinematics.SwerveModulePosition:
         """Returns the current position of the module. - JL"""
-        return wpimath.kinematics.SwerveModulePosition(
-            self.driveEncoder.getPosition() * ModuleConstants.kpositionConversionFactor,
-            wpimath.geometry.Rotation2d(self.turningEncoder.getPosition() * ModuleConstants.kDistancePerRotation),
+        position = self.driveEncoder.getPosition() * ModuleConstants.kPositionConversionFactor
+        angle = wpimath.geometry.Rotation2d(
+            self.turningEncoder.getPosition() * ModuleConstants.kDistancePerRotation
         )
+        return wpimath.kinematics.SwerveModulePosition(position, angle)
 
-    '''def setDesiredState(self, desiredState: wpimath.kinematics.SwerveModuleState) -> None:
+    # def setDesiredState(self, desiredState: wpimath.kinematics.SwerveModuleState) -> None:
+    #     """Sets the desired state for the module.
+
+    #     :param desiredState: Desired state with speed and angle.
+    #     """
+    #     currentAngle = wpimath.geometry.Rotation2d(self.turningEncoder.getPosition() * ModuleConstants.kDistancePerRotation)
+
+    #     # Optimize the desired state to minimize rotation
+    #     optimizedState = wpimath.kinematics.SwerveModuleState.optimize(desiredState, self.getState().angle)
+
+    #     # Optimize the reference state to avoid spinning further than 90 degrees - LC 1/28/25
+    #     desiredState.optimize(currentAngle)
+
+    #     # Scale speed by cosine of angle error. This scales down movement perpendicular to the desired direction of travel that can occur when modules change directions. This results in smoother driving. - LC 1/28/25
+    #     desiredState.cosineScale(currentAngle)
+
+    #     # Calculate the drive output from the drive PID controller. - LC 1/28/25
+    #     driveOutput = self.drivePIDController.calculate(optimizedState.speed)
+
+    #     driveFeedforward = self.driveFeedforward.calculate(optimizedState.speed)
+
+    #     # Calculate the turning motor output from the turning PID controller. - LC 1/28/25
+    #     turnOutput = self.turningPIDController.calculate(currentAngle.radians(), optimizedState.angle.radians())
+
+    #     turnFeedforward = self.turnFeedforward.calculate(self.turningPIDController.getSetpoint().velocity)
+
+    #     self.driveMotor.setVoltage(driveOutput + driveFeedforward)
+    #     self.turningMotor.setVoltage(turnOutput + turnFeedforward)
+
+
+    def setDesiredState(self, desiredState: wpimath.kinematics.SwerveModuleState) -> None:
         """Sets the desired state for the swerve module."""
     
-        # Get current module rotation from encoder
-        angle = wpimath.geometry.Rotation2d(self.turningEncoder.get() * DistancePerRotation)
-
-        # Optimize the target state to prevent unnecessary rotation
-        #optimizedState = wpimath.kinematics.SwerveModuleState.optimize(desiredState, currentRotation)
-       
-        # Calculate angle error for smooth turning (avoid small unnecessary turns)
-        #angleError = optimizedState.angle.minus(currentRotation)
-        #optimizedSpeed = angle.speed * angleError.cos()
-        speed = (math.tau * kWheelRadius) / kEncoderResolution
-
-        # Compute drive motor output using PID and feedforward control
-        driveOutput = self.drivePIDController.calculate(
-            self.driveEncoder.getPosition() * positionConversionFactor, desiredState.speed
-        )
-        driveFeedforward = self.driveFeedforward.calculate(speed)
-
-        # Compute turn motor output using PID and feedforward control
-        turnOutput = self.turningPIDController.calculate(
-            self.turningEncoder.get() * DistancePerRotation, desiredState.angle.radians()
-        )
-        turnFeedforward = self.turnFeedforward.calculate(self.turningPIDController.getSetpoint().velocity)
-
-        # Apply calculated voltages to motors
-        self.driveMotor.setVoltage(driveOutput + driveFeedforward)
-        self.turningMotor.setVoltage(turnOutput + turnFeedforward)'''
-
-    def setDesiredState(
-        self, desiredState: wpimath.kinematics.SwerveModuleState
-        ) -> None:
-        """Sets the desired state for the module.
-
-        :param desiredState: Desired state with speed and angle.
-        """
-
-        angle = wpimath.geometry.Rotation2d(self.turningEncoder.getPosition() * ModuleConstants.kDistancePerRotation)
-
-        # Optimize the reference state to avoid spinning further than 90 degrees - LC 1/28/25
-        desiredState.optimize(angle)
-
-        # Scale speed by cosine of angle error. This scales down movement perpendicular to the desired
-        # direction of travel that can occur when modules change directions. This results in smoother
-        # driving. - LC 1/28/25
-        desiredState.cosineScale(angle)
-
-        # Calculate the drive output from the drive PID controller. - LC 1/28/25
-        driveOutput = self.drivePIDController.calculate(
-            self.driveEncoder.getPosition() * ModuleConstants.kpositionConversionFactor, desiredState.speed
-        )
-
-        driveFeedforward = self.driveFeedforward.calculate(desiredState.speed)
-
-        # Calculate the turning motor output from the turning PID controller. - LC 1/28/25
-        turnOutput = self.turningPIDController.calculate(
-            self.turningEncoder.getPosition() * ModuleConstants.kDistancePerRotation, desiredState.angle.radians()
-        )
-
-        turnFeedforward = self.turnFeedforward.calculate(
-            self.turningPIDController.getSetpoint().velocity
-        )
-
-        self.driveMotor.setVoltage(driveOutput + driveFeedforward)
-        self.turningMotor.setVoltage(turnOutput + turnFeedforward)
-
+        # Optimize state to minimize rotation
+        try:
+            optimizedState = wpimath.kinematics.SwerveModuleState.optimize(
+                desiredState, self.getState().angle
+            )
+        except Exception as e:
+            #print(f"Optimization error: {e}")
+            optimizedState = desiredState  # Fallback if optimization fails
+    
+        # Drive motor output
+        try:
+            driveOutput = self.drivePIDController.calculate(
+                self.driveEncoder.getVelocity(),
+                optimizedState.speed
+            )
+            driveFeedforward = self.driveFeedforward.calculate(optimizedState.speed)
+            self.driveMotor.setVoltage(driveOutput + driveFeedforward)
+        except Exception as e:
+            #print(f"Drive error: {e}")
+            self.driveMotor.setVoltage(0)
+    
+        # Turning motor output
+        try:
+            turnOutput = self.turningPIDController.calculate(
+                self.turningEncoder.getPosition() * ModuleConstants.kDistancePerRotation,
+                optimizedState.angle.radians()
+            )
+            turnFeedforward = self.turnFeedforward.calculate(
+                self.turningPIDController.getSetpoint().velocity
+            )
+            self.turningMotor.setVoltage(turnOutput + turnFeedforward)
+        except Exception as e:
+            #print(f"Turn error: {e}")
+            self.turningMotor.setVoltage(0)
 
     def stop(self) -> None:
         """Stops the module."""
