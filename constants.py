@@ -10,13 +10,13 @@ from wpimath.filter import SlewRateLimiter
 class DrivingConstants:
     drivingSpeedLimiter = 1
     rotationSpeedLimiter = 1
-    voltageLimiter = SlewRateLimiter(0.5)
+    voltageLimiter = SlewRateLimiter(3.0)
 
 class OIConstants:
     # Constants for the Operator Interface
     kDriverControllerPort = 0
     kOperatorControllerPort = 1
-    deadzone = 0.2
+    deadzone = 0.1
 
 
 
@@ -28,7 +28,7 @@ class ModuleConstants:
     kModuleMaxAngularAcceleration = math.tau
     kJoystickDeadband = 0.1  # Deadband for joystick inputs 
     kDistancePerRotation = math.tau / kEncoderResolution
-    kpositionConversionFactor = math.tau * kWheelRadius / kEncoderResolution
+    kPositionConversionFactor = math.tau * kWheelRadius / kEncoderResolution
     kPTurning = 0.2 #TODO: tune this value -JL on 2/3/25
 
 
@@ -69,7 +69,6 @@ class RobotConstants:
     backRightAbsoluteEncoderOffset = 1.57 #recalibrate this value
     backRightAbsoluteEncoderReversed = False #TODO: check if this is correct -JL on 2/3/25
     
-
 
 
 
