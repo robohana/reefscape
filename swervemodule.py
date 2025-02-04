@@ -6,19 +6,13 @@ import wpimath.controller
 import wpimath.trajectory
 import wpimath.units
 import rev
+from constants import ModuleConstants
 
-# Constants for the swerve module - JL
-kWheelRadius = 0.0508
-kEncoderResolution = 4096
-kModuleMaxAngularVelocity = math.pi
-kModuleMaxAngularAcceleration = math.tau
-kJoystickDeadband = 0.1  # Deadband for joystick inputs - JL
-kDistancePerRotation = math.tau / kEncoderResolution
-kpositionConversionFactor = math.tau * kWheelRadius / kEncoderResolution
+
 
 
 class SwerveModule:
-    def __init__(self, driveMotorChannel: int, turningMotorChannel: int, turningEncoderChannel: int, invertDrive: bool = False, invertTurn: bool = False) -> None:
+    def __init__(self, driveMotorChannel: int, turningMotorChannel: int, absEncoderChannel: int, invertDrive: bool, invertTurn: bool, absouteEncoderOffset: float, absoluteEncoderReversed: bool) -> None:
         """Constructs a SwerveModule with a drive motor, turning motor, drive encoder, and turning encoder. - JL
 
         :param driveMotorChannel: PWM output for the drive motor.
@@ -27,6 +21,8 @@ class SwerveModule:
         :param invertDrive: Whether to invert the drive motor direction.
         :param invertTurn: Whether to invert the turning motor direction.
         """
+
+
         self.driveMotor = rev.SparkBase(driveMotorChannel, rev.SparkLowLevel.MotorType.kBrushless, rev.SparkLowLevel.SparkModel.kSparkMax)
         self.turningMotor = rev.SparkBase(turningMotorChannel, rev.SparkLowLevel.MotorType.kBrushless, rev.SparkLowLevel.SparkModel.kSparkMax)
 
@@ -43,18 +39,30 @@ class SwerveModule:
         self.turningMotor.configure(turnMotorConfig, rev.SparkMax.ResetMode.kResetSafeParameters, rev.SparkMax.PersistMode.kPersistParameters)
 
         self.driveEncoder = self.driveMotor.getEncoder()
-        self.turningEncoder = wpilib.AnalogEncoder(turningEncoderChannel)
+        self.turningEncoder = self.turningMotor.getEncoder()
+
+        # Absolute Encoder
+        # Absolute Encoders help "remember" the location of the module.
+        # This is useful for when the robot is turned off and on again.
+        self.absoluteEncoderOffsetRad = absouteEncoderOffset
+        self.absoluteEncoderReversed = absoluteEncoderReversed
+        
+        self.absEncoder = wpilib.AnalogEncoder(absEncoderChannel)
+
+        self.resetEncoders() 
 
         #TODO: Tune the drive and turn PID controllers - LC 1/30/25
         # Initialize PID controllers with initial gains - LC 1/30/25
         self.drivePIDController = wpimath.controller.PIDController(0.01, 0, 0)
+        
         self.turningPIDController = wpimath.controller.ProfiledPIDController(
-            0.08, 0, 0,  # Adjusted PID gains - JL
+            ModuleConstants.kPTurning, 0, 0,  # Adjusted PID gains - JL
             wpimath.trajectory.TrapezoidProfile.Constraints(
-                kModuleMaxAngularVelocity,
-                kModuleMaxAngularAcceleration,
+                ModuleConstants.kModuleMaxAngularVelocity,
+                ModuleConstants.kModuleMaxAngularAcceleration,
             ),
         )
+        self.turningPIDController.enableContinuousInput(-math.pi, math.pi)
 
         #TODO: Tune the drive and turn feed forward values - LC 1/30/25
         self.driveFeedforward = wpimath.controller.SimpleMotorFeedforwardMeters(0.1, 1)
@@ -63,7 +71,22 @@ class SwerveModule:
         #rev.EncoderConfig.positionConversionFactor(math.tau * kWheelRadius / kEncoderResolution)
         #self.turningEncoder.setDistancePerRotation(math.tau / kEncoderResolution)
 
-        self.turningPIDController.enableContinuousInput(-math.pi, math.pi)
+
+    
+    def getAbsoluteEncoderRad(self) -> float:
+        """Returns the absolute encoder position in radians. - JL"""
+
+        wpilib.SmartDashboard.putNumber("absEncoder", self.absEncoder.get())
+
+        angle = self.absEncoder.get()
+        angle *= 2 * math.pi #? convert to radians
+        angle -= self.absoluteEncoderOffsetRad #? get acual location depending on the offset
+        # TODO: calculate the actual offset, convert to rad, add here -JL on 2/3/25
+
+    def resetEncoders(self):
+        """Resets the drive and turning encoders to zero."""
+        self.driveEncoder.setPosition(0)
+        self.turningEncoder.setPosition(self.getAbsoluteEncoderRad())
 
 
     def getState(self) -> wpimath.kinematics.SwerveModuleState:
@@ -72,18 +95,17 @@ class SwerveModule:
         :returns: The current state of the module.
         """
         return wpimath.kinematics.SwerveModuleState(
-            self.driveEncoder.getPosition(),
-            wpimath.geometry.Rotation2d(self.turningEncoder.get() * kDistancePerRotation),
+            self.driveEncoder.getPosition(), #TODO: Should this be getVelocity?? - JL on 2/3/25
+            wpimath.geometry.Rotation2d(self.getAbsoluteEncoderRad()),
         )
 
     def getPosition(self) -> wpimath.kinematics.SwerveModulePosition:
         """Returns the current position of the module. - JL"""
         return wpimath.kinematics.SwerveModulePosition(
-            self.driveEncoder.getPosition() * kpositionConversionFactor,
-            wpimath.geometry.Rotation2d(self.turningEncoder.get() * kDistancePerRotation),
+            self.driveEncoder.getPosition() * ModuleConstants.kpositionConversionFactor,
+            wpimath.geometry.Rotation2d(self.turningEncoder.get() * ModuleConstants.kDistancePerRotation),
         )
 
-        #TODO: Rewrite this whole funtion - JL 1/28/25
     '''def setDesiredState(self, desiredState: wpimath.kinematics.SwerveModuleState) -> None:
         """Sets the desired state for the swerve module."""
     
@@ -122,7 +144,7 @@ class SwerveModule:
         :param desiredState: Desired state with speed and angle.
         """
 
-        angle = wpimath.geometry.Rotation2d(self.turningEncoder.get() * kDistancePerRotation)
+        angle = wpimath.geometry.Rotation2d(self.turningEncoder.get() * ModuleConstants.kDistancePerRotation)
 
         # Optimize the reference state to avoid spinning further than 90 degrees - LC 1/28/25
         desiredState.optimize(angle)
@@ -134,14 +156,14 @@ class SwerveModule:
 
         # Calculate the drive output from the drive PID controller. - LC 1/28/25
         driveOutput = self.drivePIDController.calculate(
-            self.driveEncoder.getPosition() * kpositionConversionFactor, desiredState.speed
+            self.driveEncoder.getPosition() * ModuleConstants.kpositionConversionFactor, desiredState.speed
         )
 
         driveFeedforward = self.driveFeedforward.calculate(desiredState.speed)
 
         # Calculate the turning motor output from the turning PID controller. - LC 1/28/25
         turnOutput = self.turningPIDController.calculate(
-            self.turningEncoder.get() * kDistancePerRotation, desiredState.angle.radians()
+            self.turningEncoder.get() * ModuleConstants.kDistancePerRotation, desiredState.angle.radians()
         )
 
         turnFeedforward = self.turnFeedforward.calculate(
@@ -150,5 +172,11 @@ class SwerveModule:
 
         self.driveMotor.setVoltage(driveOutput + driveFeedforward)
         self.turningMotor.setVoltage(turnOutput + turnFeedforward)
+
+
+    def stop(self) -> None:
+        """Stops the module."""
+        self.driveMotor.set(0)
+        self.turningMotor.set(0)
 
    
