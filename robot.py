@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 
 import wpilib
@@ -22,11 +23,11 @@ class MyRobot(wpilib.TimedRobot):
         self.rotLimiter = DrivingConstants.voltageLimiter
 
         # Reset encoders at the start of the match - JL
-        self.swerve.resetEncoders()
+        #self.swerve.resetEncoders() # TODO: REMOVE? we have this in swervemodule already. - JL 2/4/25
         # Update odometry with the starting positions - JL
         self.swerve.updateOdometry()
-        self.log_counter = 0
-        self.log_interval = 50  # Log every 50 iterations - LC 1/30/25
+        # self.log_counter = 0
+        # self.log_interval = 50  # Log every 50 iterations - LC 1/30/25
 
     def autonomousPeriodic(self) -> None:
         #self.swerve.autonomousRoutine()
@@ -35,33 +36,37 @@ class MyRobot(wpilib.TimedRobot):
     def teleopPeriodic(self) -> None:
         self.driveWithJoystick()
         self.logHeading()
-        if self.log_counter % 50 == 0:
-            self.swerve.showInverted()
-        self.log_counter += 1
+        # if self.log_counter % 50 == 0:
+        #     self.swerve.showInverted()
+        # self.log_counter += 1
 
     def driveWithJoystick(self) -> None:
         xSpeed = (
             -self.xspeedLimiter.calculate(
-                wpimath.applyDeadband(self.controller.getLeftY(), OIConstants.deadzone)
+                wpimath.applyDeadband(self.controller.getRawAxis(1), OIConstants.deadzone)
             )
             * kMaxSpeed
         )
 
         ySpeed = (
             -self.yspeedLimiter.calculate(
-                wpimath.applyDeadband(self.controller.getLeftX(), OIConstants.deadzone)
+                wpimath.applyDeadband(self.controller.getRawAxis(0), OIConstants.deadzone)
             )
             * kMaxSpeed
         )
 
         rot = (
             -self.rotLimiter.calculate(
-                wpimath.applyDeadband(self.controller.getRightX(), OIConstants.deadzone)
+                wpimath.applyDeadband(self.controller.getRawAxis(4), OIConstants.deadzone)
             )
             * kMaxAngularSpeed
         )
 
         self.swerve.drive(xSpeed, ySpeed, rot, True, self.getPeriod())
+        wpilib.SmartDashboard.putNumber("xSpeed", xSpeed)
+        wpilib.SmartDashboard.putNumber("ySpeed", ySpeed)
+        wpilib.SmartDashboard.putNumber("rot", rot)
+
 
     def logHeading(self) -> None:
         """Logs the robot's heading to the SmartDashboard. - JL"""
