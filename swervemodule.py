@@ -82,6 +82,7 @@ class SwerveModule:
         angle *= 2 * math.pi #? convert to radians
         angle -= self.absoluteEncoderOffsetRad #? get acual location depending on the offset
         # TODO: calculate the actual offset, convert to rad, add here -JL on 2/3/25
+        return angle * (-1 if self.absoluteEncoderReversed else 1)
 
     def resetEncoders(self):
         """Resets the drive and turning encoders to zero."""
@@ -103,7 +104,7 @@ class SwerveModule:
         """Returns the current position of the module. - JL"""
         return wpimath.kinematics.SwerveModulePosition(
             self.driveEncoder.getPosition() * ModuleConstants.kpositionConversionFactor,
-            wpimath.geometry.Rotation2d(self.turningEncoder.get() * ModuleConstants.kDistancePerRotation),
+            wpimath.geometry.Rotation2d(self.turningEncoder.getPosition() * ModuleConstants.kDistancePerRotation),
         )
 
     '''def setDesiredState(self, desiredState: wpimath.kinematics.SwerveModuleState) -> None:
@@ -144,7 +145,7 @@ class SwerveModule:
         :param desiredState: Desired state with speed and angle.
         """
 
-        angle = wpimath.geometry.Rotation2d(self.turningEncoder.get() * ModuleConstants.kDistancePerRotation)
+        angle = wpimath.geometry.Rotation2d(self.turningEncoder.getPosition() * ModuleConstants.kDistancePerRotation)
 
         # Optimize the reference state to avoid spinning further than 90 degrees - LC 1/28/25
         desiredState.optimize(angle)
@@ -163,7 +164,7 @@ class SwerveModule:
 
         # Calculate the turning motor output from the turning PID controller. - LC 1/28/25
         turnOutput = self.turningPIDController.calculate(
-            self.turningEncoder.get() * ModuleConstants.kDistancePerRotation, desiredState.angle.radians()
+            self.turningEncoder.getPosition() * ModuleConstants.kDistancePerRotation, desiredState.angle.radians()
         )
 
         turnFeedforward = self.turnFeedforward.calculate(
