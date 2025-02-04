@@ -1,13 +1,15 @@
+
 import math
 import wpilib
 import wpimath.geometry
 import wpimath.kinematics
 import swervemodule
 import rev
-from wpilib import DataLogManager, DriverStation
-from constants import RobotConstants
- 
-#from navx import AHRS  # Import the AHRS class from the navX library
+import navx
+from constants import RobotConstants 
+from navx import AHRS  # Import the AHRS class from the navX library
+from wpimath.geometry import Pose2d
+
 
 kMaxSpeed = 3.0  # 3 meters per second
 kMaxAngularSpeed = math.pi  # 1/2 rotation per second
@@ -55,10 +57,11 @@ class Drivetrain:
                                                    RobotConstants.backRightAbsoluteEncoderOffset,
                                                    RobotConstants.backRightAbsoluteEncoderReversed)
 
-        self.gyro = wpilib.ADXRS450_Gyro()
-       
+        #self.gyro = wpilib.ADXRS450_Gyro()
+        self.gyro = AHRS(comType=navx._navx.AHRS.NavXComType.kMXP_SPI)
+
         self.gyro.reset()
-        
+        #update_rate = self.navx.getRate()
         # FR_isInverted = self.frontRight.driveMotor.getInverted()
         # wpilib.SmartDashboard.putBoolean(f"Front Right Inverted?", FR_isInverted)
 
@@ -129,19 +132,19 @@ class Drivetrain:
         # self.showInverted()
         #self.dataManager()
 
-    def showInverted(self) -> None:
+    # def showInverted(self) -> None:
         # FR_isInverted = self.frontRight.driveMotor.getInverted() 
         # FL_isInverted = self.frontLeft.driveMotor.getInverted() 
         # BR_isInverted = self.backRight.driveMotor.getInverted() 
         # BL_isInverted = self.backLeft.driveMotor.getInverted()
-
+        
         # Check if half of a second has passed - LC 1/30/25
         # Test 1, add TIMER to control data flow - LC 1/30/25
         # if self.timer.hasElapsed(0.5):
             # Reset the timer to count another 5 seconds, this is how you get it to loop every 5 seconds - LC 1/30/25
             # Removed right now because i only want to know at the start of the op which motors are inverted - LC 1/30/25
             #self.timer.reset()           
-            """Logs the motor invertion. Shows as a boolean value or green or red. - LC 1/30/25"""
+            # """Logs the motor invertion. Shows as a boolean value or green or red. - LC 1/30/25"""
             # Log if motor is inverted  for debugging
             #wpilib.SmartDashboard.putBoolean(f"Front Left Inverted?", FL_isInverted)
             #wpilib.SmartDashboard.putBoolean(f"Back Right Inverted?", BR_isInverted)
