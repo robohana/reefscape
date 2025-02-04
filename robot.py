@@ -7,17 +7,19 @@ import wpimath.filter
 import wpimath.controller
 import drivetrain
 from drivetrain import kMaxSpeed, kMaxAngularSpeed, Drivetrain
+from constants import RobotConstants, ModuleConstants, OIConstants, DrivingConstants
+
 
 class MyRobot(wpilib.TimedRobot):
     def robotInit(self) -> None:
         """Robot initialization function - JL"""
-        self.controller = wpilib.XboxController(0)
+        self.controller = wpilib.XboxController(OIConstants.kDriverControllerPort)
         self.swerve = drivetrain.Drivetrain()
 
         # # Slew rate limiters to make joystick inputs more gentle; 1/3 sec from 0 to 1. - JL
-        self.xspeedLimiter = wpimath.filter.SlewRateLimiter(3)
-        self.yspeedLimiter = wpimath.filter.SlewRateLimiter(3)
-        self.rotLimiter = wpimath.filter.SlewRateLimiter(3)
+        self.xspeedLimiter = DrivingConstants.voltageLimiter
+        self.yspeedLimiter = DrivingConstants.voltageLimiter
+        self.rotLimiter = DrivingConstants.voltageLimiter
 
         # Reset encoders at the start of the match - JL
         self.swerve.resetEncoders()
@@ -40,25 +42,24 @@ class MyRobot(wpilib.TimedRobot):
     def driveWithJoystick(self) -> None:
         xSpeed = (
             -self.xspeedLimiter.calculate(
-                wpimath.applyDeadband(self.controller.getLeftY(), 0.1)
+                wpimath.applyDeadband(self.controller.getLeftY(), OIConstants.deadzone)
             )
             * kMaxSpeed
         )
 
         ySpeed = (
             -self.yspeedLimiter.calculate(
-                wpimath.applyDeadband(self.controller.getLeftX(), 0.1)
+                wpimath.applyDeadband(self.controller.getLeftX(), OIConstants.deadzone)
             )
             * kMaxSpeed
         )
 
-        rot = 0
-        '''rot = (
+        rot = (
             -self.rotLimiter.calculate(
-                wpimath.applyDeadband(self.controller.getRightX(), 0.1)
+                wpimath.applyDeadband(self.controller.getRightX(), OIConstants.deadzone)
             )
             * kMaxAngularSpeed
-        )'''
+        )
 
         self.swerve.drive(xSpeed, ySpeed, rot, True, self.getPeriod())
 
