@@ -79,6 +79,8 @@ class SwerveModule:
         angle *= 2 * math.pi #? convert to radians
         angle -= self.absoluteEncoderOffsetRad #? get acual location depending on the offset
         # TODO: calculate the actual offset, convert to rad, add here -JL on 2/3/25
+
+        wpilib.SmartDashboard.putNumber("angle", angle)        
         return angle * (-1 if self.absoluteEncoderReversed else 1)
 
     def resetEncoders(self):
@@ -89,8 +91,8 @@ class SwerveModule:
 
     def getState(self) -> wpimath.kinematics.SwerveModuleState:
         """Returns the current state of the module. - JL"""
-        speed = self.driveEncoder.getVelocity() #getVlocity here providesreal-time speed of wheeel which is what we need not total distance traveled. - LC 2/4/25
-        angle = wpimath.geometry.Rotation2d(
+        speed = self.driveEncoder.getVelocity() #getVelocity here provides real-time speed of wheeel which is what we need not total distance traveled. - LC 2/4/25
+        angle = wpimath.geometry.Rotation2d(    #! getVelocity returns the RPM of the motor -JL on 2/5/25
             self.getAbsoluteEncoderRad()
         )
         return wpimath.kinematics.SwerveModuleState(speed, angle)
@@ -138,17 +140,27 @@ class SwerveModule:
     
         # Optimize state to minimize rotation
         try:
-            optimizedState = wpimath.kinematics.SwerveModuleState.optimize(
-                desiredState, self.getState().angle
-            )
+            
+            if desiredState.speed == 0.0: #Check if desiredState.speed == 0.0 before calling optimize(), If speed is 0, return desiredState directly (prevents None), Only call optimize() for nonzero speeds -JL on 2/5/25
+                optimizedState = desiredState
+            
+            else:
+                optimizedState = wpimath.kinematics.SwerveModuleState.optimize(
+                    desiredState, self.getState().angle
+                )
+            print(f"Optimized state: {optimizedState}")
+            print(f"current angle - desired state angle: {self.getState().angle - desiredState.angle}")
+            print(f"Desired State: {desiredState}")
+            print(f"Current Angle: {self.getState().angle}")
+
         except Exception as e:
-            #print(f"Optimization error: {e}")
+            print(f"Optimization Failed...Setting state to desired state: {e}")
             optimizedState = desiredState  # Fallback if optimization fails
     
         # Drive motor output
         try:
-            driveOutput = self.drivePIDController.calculate(
-                self.driveEncoder.getVelocity(),
+            driveOutput = self.drivePIDController.calculate( #! error = optimizedState.speed - self.driveEncoder.getVelocity()
+                self.driveEncoder.getVelocity(),               #! driveOutput = kP(0.01) * error
                 optimizedState.speed
             )
             driveFeedforward = self.driveFeedforward.calculate(optimizedState.speed)
