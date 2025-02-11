@@ -1,77 +1,46 @@
-
 #!/usr/bin/env python3
+'''
 
+This is the main class for the robot. This class is the glue that binds the robot together. All of the robot-wide systems
+(such as the Field2d, RobotContainer, and RobotContainer) should be instantiated here. The autonomous routine should
+be in the autonomousInit() method, and the teleop control should be in the teleopPeriodic() method. The robotInit() and
+robotPeriodic() methods at the bottom of this file should generally remain unchanged. 
+
+'''
+
+
+import commands2
 import wpilib
-import wpimath
-import wpilib.drive
-import wpimath.filter
-import wpimath.controller
-import drivetrain
-from drivetrain import kMaxSpeed, kMaxAngularSpeed, Drivetrain
-from constants import RobotConstants, ModuleConstants, OIConstants, DrivingConstants
+import typing
+from robotcontainer import RobotContainer
+from subsystems.swervemodule import SwerveModule
 
 
-class MyRobot(wpilib.TimedRobot):
-    def robotInit(self) -> None:
-        """Robot initialization function - JL"""
-        self.controller = wpilib.XboxController(OIConstants.kDriverControllerPort)
-        self.swerve = drivetrain.Drivetrain()
+class MyRobot(commands2.TimedCommandRobot):
+    def robotInit(self):
+        # Instantiate our RobotContainer.  This will perform all our button bindings, and put our
+        # autonomous chooser on the dashboard.
+        self.container = RobotContainer()
+        self.autonomousCommand = None
 
-        # # Slew rate limiters to make joystick inputs more gentle; 1/3 sec from 0 to 1. - JL
-        self.xspeedLimiter = DrivingConstants.voltageLimiter
-        self.yspeedLimiter = DrivingConstants.voltageLimiter
-        self.rotLimiter = DrivingConstants.voltageLimiter
+    # def autonomousInit(self) -> None:
+    #     self.autonomousCommand = self.container.getAutonomousCommand()
 
-        # Reset encoders at the start of the match - JL
-        #self.swerve.resetEncoders() # TODO: REMOVE? we have this in swervemodule already. - JL 2/4/25
-        # Update odometry with the starting positions - JL
-        self.swerve.updateOdometry()
-        # self.log_counter = 0
-        # self.log_interval = 50  # Log every 50 iterations - LC 1/30/25
+    #     if self.autonomousCommand:
+    #         self.autonomousCommand.schedule()
 
-    def autonomousPeriodic(self) -> None:
-        #self.swerve.autonomousRoutine()
-        self.logHeading()
+    def teleopInit(self) -> None:
+        if self.autonomousCommand:
+            self.autonomousCommand.cancel()
+        print("Starting TeleOp... ")
+        SwerveModule.resetEncoders()
 
-    def teleopPeriodic(self) -> None:
-        self.driveWithJoystick()
-        self.logHeading()
-        # if self.log_counter % 50 == 0:
-        #     self.swerve.showInverted()
-        # self.log_counter += 1
+    def testInit(self) -> None:
+        commands2.CommandScheduler.getInstance().cancelAll()
 
-    def driveWithJoystick(self) -> None:
-        xSpeed = (
-            -self.xspeedLimiter.calculate(
-                wpimath.applyDeadband(self.controller.getRawAxis(1), OIConstants.deadzone)
-            )
-            * kMaxSpeed
-        )
+    def testPeriodic(self) -> None:
+        pass
 
-        ySpeed = (
-            -self.yspeedLimiter.calculate(
-                wpimath.applyDeadband(self.controller.getRawAxis(0), OIConstants.deadzone)
-            )
-            * kMaxSpeed
-        )
-
-        rot = (
-            -self.rotLimiter.calculate(
-                wpimath.applyDeadband(self.controller.getRawAxis(4), OIConstants.deadzone)
-            )
-            * kMaxAngularSpeed
-        )
-
-        self.swerve.drive(xSpeed, ySpeed, rot, True, self.getPeriod())
-        wpilib.SmartDashboard.putNumber("xSpeed", xSpeed)
-        wpilib.SmartDashboard.putNumber("ySpeed", ySpeed)
-        wpilib.SmartDashboard.putNumber("rot", rot)
-
-
-    def logHeading(self) -> None:
-        """Logs the robot's heading to the SmartDashboard. - JL"""
-        heading = self.swerve.gyro.getAngle()
-        wpilib.SmartDashboard.putNumber("Robot Heading", heading)
 
 if __name__ == "__main__":
     wpilib.run(MyRobot)
