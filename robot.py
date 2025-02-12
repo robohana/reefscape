@@ -10,6 +10,7 @@ robotPeriodic() methods at the bottom of this file should generally remain uncha
 
 
 import commands2
+from commands2 import CommandScheduler
 import wpilib
 import typing
 from robotcontainer import RobotContainer
@@ -17,26 +18,43 @@ from subsystems.swervemodule import SwerveModule
 
 
 class MyRobot(commands2.TimedCommandRobot):
-    def robotInit(self):
+    def robotInit(self) -> None:
         # Instantiate our RobotContainer.  This will perform all our button bindings, and put our
         # autonomous chooser on the dashboard.
         self.container = RobotContainer()
-        self.autonomousCommand = None
+        #self.autonomousCommand = None
 
-    # def autonomousInit(self) -> None:
-    #     self.autonomousCommand = self.container.getAutonomousCommand()
+        self.driverController = self.container.driverController
 
-    #     if self.autonomousCommand:
-    #         self.autonomousCommand.schedule()
+        #self.drive = self.Container.drive
+        self.robotDrive = self.container.robotDrive
+        #CommandScheduler.getInstance().registerSubsystem(self.robotDrive)
+
+    def robotPeriodic(self) -> None:
+        CommandScheduler.getInstance().run()
+
+    def disabledInit(self) -> None:
+        pass
+
+    def disabledPeriodic(self) -> None:
+        pass
+
+    def autonomousInit(self) -> None:
+        pass
+
+    def autonomousPeriodic(self) -> None:
+        pass
 
     def teleopInit(self) -> None:
-        if self.autonomousCommand:
-            self.autonomousCommand.cancel()
-        print("Starting TeleOp... ")
-        SwerveModule.resetEncoders()
+        pass
+        #print("Starting TeleOp... ")
+        #SwerveModule.resetEncoders()
+
+    def teleopPeriodic(self) -> None:
+        pass
 
     def testInit(self) -> None:
-        commands2.CommandScheduler.getInstance().cancelAll()
+        CommandScheduler.getInstance().run()
 
     def testPeriodic(self) -> None:
         pass
