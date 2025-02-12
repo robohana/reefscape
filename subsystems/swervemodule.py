@@ -25,6 +25,8 @@ from constants import ModuleConstants
 from rev import SparkMax, SparkMaxConfig, SparkBaseConfig, SparkBase
 from wpimath.geometry import Rotation2d
 from wpimath.kinematics import SwerveModuleState, SwerveModulePosition
+from ntcore import NetworkTableInstance
+
 
 
 class SwerveModule:
@@ -36,6 +38,19 @@ class SwerveModule:
         :param turningEncoderChannel: Analog input for the turning absolute encoder.
         :param absoluteEncoderOffset: Offset for the absolute encoder.
         """
+
+
+        # Force NetworkTables to start
+        self.nt = NetworkTableInstance.getDefault()
+        self.nt.startServer()  # Explicitly start the NT server
+
+        # Create a NetworkTables entry for debugging
+        self.debugTable = self.nt.getTable("SwerveDebug")
+
+        # Log NT startup
+        print("NetworkTables started: SwerveDebug should be available")
+
+
         self.absouteEncoderOffset = 0
         self.desiredState = SwerveModuleState(0.0, Rotation2d())
 
@@ -132,20 +147,48 @@ class SwerveModule:
         :param desiredState: Desired state with speed and angle.
         """
 
-        correctedDesiredState = SwerveModuleState()
-        correctedDesiredState.speed = desiredState.speed
-        correctedDesiredState.angle = desiredState.angle + Rotation2d(self.chassisAngularOffset)
+        # correctedDesiredState = SwerveModuleState()
+        # correctedDesiredState.speed = desiredState.speed
+        # correctedDesiredState.angle = desiredState.angle + Rotation2d(self.chassisAngularOffset)
+
+        correctedDesiredState = SwerveModuleState(
+            desiredState.speed, 
+            desiredState.angle + Rotation2d(self.chassisAngularOffset)
+        )
+        # Send corrected state to NetworkTables
+        self.debugTable.putNumber("CorrectedSpeed", correctedDesiredState.speed)
+        self.debugTable.putNumber("CorrectedAngle", correctedDesiredState.angle.radians())
 
 
                 # Optimize the reference state to avoid spinning further than 90 degrees.
-        optimizedDesiredState = SwerveModuleState.optimize(correctedDesiredState, Rotation2d(self.turningEncoder.getPosition()))
+        optimizedDesiredState = SwerveModuleState.optimize(
+            correctedDesiredState, 
+            self.getState().angle)
         # Optimize the reference state to avoid spinning further than 90 degrees.
         #!~ self.getState().angle already accounts for the offset since angle comes from def getAbsoluteEncoderRad()
         #desiredState = wpimath.kinematics.SwerveModuleState.optimize(desiredState, Rotation2d(self.turningEncoder.getPosition()))
+            # If optimization fails, log it
+        if optimizedDesiredState is None:
+            self.debugTable.putString("OptimizeError", "optimize() returned None!")
+            optimizedDesiredState = correctedDesiredState  # Fallback
+        
+        # Send optimized state to NetworkTables
+        self.debugTable.putNumber("OptimizedSpeed", optimizedDesiredState.speed)
+        self.debugTable.putNumber("OptimizedAngle", optimizedDesiredState.angle.radians())
+
+        # Send wheel vector data to NetworkTables for AdvantageScope visualization
+        moduleName = f"Module_{self.driveMotor.getDeviceId()}"  # Unique name per module
+        moduleTable = self.nt.getTable(f"SwerveModules/{moduleName}")
+
+        moduleTable.putNumber("Speed", optimizedDesiredState.speed)
+        moduleTable.putNumber("Angle", optimizedDesiredState.angle.radians())
+
+
+        
     
             # Command driving and turning SPARKS MAX towards their respective setpoints.
-        self.drivePIDController.setSetpoint(optimizedDesiredState.speed, SparkMax.ControlType.kVelocity)
-        self.turningPIDController.setSetpoint(optimizedDesiredState.angle.radians(), SparkMax.ControlType.kPosition)
+        self.drivePIDController.setSetpoint(optimizedDesiredState.speed)
+        self.turningPIDController.setSetpoint(optimizedDesiredState.angle.radians())
 
         # self.drivePIDController.setSetpoint(desiredState.speed, SparkMax.ControlType.kVelocity)
 
