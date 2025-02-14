@@ -5,8 +5,6 @@ This file contains the SwerveModule class, which represents a single swerve modu
 '''
 
 
-
-
 import math
 import wpilib
 import time
@@ -18,6 +16,7 @@ import wpimath.trajectory
 import wpimath.units
 from wpimath.trajectory import TrajectoryConfig
 from wpilib import AnalogEncoder
+import commands2
 
 from wpimath.controller import PIDController, ProfiledPIDController,SimpleMotorFeedforwardMeters, SimpleMotorFeedforwardRadians
 
@@ -26,10 +25,11 @@ from rev import SparkMax, SparkMaxConfig, SparkBaseConfig, SparkBase
 from wpimath.geometry import Rotation2d
 from wpimath.kinematics import SwerveModuleState, SwerveModulePosition
 from ntcore import NetworkTableInstance
+from commands2 import CommandScheduler
 
 
 
-class SwerveModule:
+class SwerveModule(commands2.SubsystemBase):
     def __init__(self, driveMotorChannel: int, turningMotorChannel: int, absEncoderChannel: int, absouteEncoderOffset: float) -> None:
         """Constructs a SwerveModule with a drive motor, turning motor, drive encoder, and turning encoder. - JL
 
@@ -38,11 +38,10 @@ class SwerveModule:
         :param turningEncoderChannel: Analog input for the turning absolute encoder.
         :param absoluteEncoderOffset: Offset for the absolute encoder.
         """
-
-
+        super().__init__()
         # Force NetworkTables to start
         self.nt = NetworkTableInstance.getDefault()
-        self.nt.startServer()  # Explicitly start the NT server
+
 
         # Create a NetworkTables entry for debugging
         self.debugTable = self.nt.getTable("SwerveDebug")
@@ -52,17 +51,11 @@ class SwerveModule:
 
 
         self.absouteEncoderOffset = 0
-        self.desiredState = SwerveModuleState(0.0, Rotation2d())
 
 
 
         self.driveMotor = SparkMax(driveMotorChannel, SparkMax.MotorType.kBrushless)
         self.turningMotor = SparkMax(turningMotorChannel, SparkMax.MotorType.kBrushless)
-
-
-
-        #self.driveMotor.setInverted(False)
-        #self.turningMotor.setInverted(False)
 
         driveMotorConfig = SparkMaxConfig()
         turnMotorConfig = SparkMaxConfig()
@@ -107,123 +100,62 @@ class SwerveModule:
 
 
         self.chassisAngularOffset = absouteEncoderOffset
-        self.desiredState.angle = Rotation2d(self.turningEncoder.getPosition())
-        self.driveEncoder.setPosition(0)
+
+        self.resetEncoders()
 
     
     def getAbsoluteEncoderRad(self) -> float:
         """Returns the absolute encoder position in radians minus the offset."""
         angle = self.absEncoder.get()
         angle *= math.tau #? convert to radians
-        angle -= self.absoluteEncoderOffsetRad #? get acual location depending on the offset
-        # TODO: calculate the actual offset, convert to rad, add here -JL on 2/3/25      
+        angle -= self.absoluteEncoderOffsetRad #? get acual location depending on the offset    
         return angle 
+    
+    def getDrivePosition(self) -> float:
+        """Returns the position of the drive encoder in meters."""
+        return self.driveEncoder.getPosition()
+    
+    def getTurningPosition(self) -> float:
+        """Returns the position of the turning encoder in radians."""
+        return self.turningEncoder.getPosition()
+    
+    def getDriveVelocity(self) -> float:
+        """Returns the velocity of the drive encoder in meters per second."""
+        return self.driveEncoder.getVelocity()
+    
+    def getTurningVelocity(self) -> float:
+        """Returns the velocity of the turning encoder in radians per second."""
+        return self.turningEncoder.getVelocity()
+    
 
     def resetEncoders(self):
         """Resets the drive encoders to zero and Turn Encoders to value from absolute encoder in rads."""
         self.driveEncoder.setPosition(0)
         self.turningEncoder.setPosition(self.getAbsoluteEncoderRad())
 
-
-    def getState(self) -> wpimath.kinematics.SwerveModuleState:
-        """Returns the current state of the module. - JL"""
-        speed = self.driveEncoder.getVelocity()  #getVelocity here provides real-time speed of wheeel which is what we need not total distance traveled. - LC 2/4/25
-        angle = wpimath.geometry.Rotation2d(    #! getVelocity returns the RPM of the motor -JL on 2/5/25
-            self.getAbsoluteEncoderRad()
-        )
-        return wpimath.kinematics.SwerveModuleState(speed, angle)
-
-    def getPosition(self) -> wpimath.kinematics.SwerveModulePosition:
+    def getSwerveModulePosition(self) -> SwerveModulePosition:
         """Returns the current position of the module."""
-        position = self.driveEncoder.getPosition() * ModuleConstants.kPositionConversionFactor
-        angle = wpimath.geometry.Rotation2d(
-            self.getAbsoluteEncoderRad()
-        )
-        return wpimath.kinematics.SwerveModulePosition(position, angle)
+        return SwerveModulePosition(self.getDrivePosition(), Rotation2d(self.getAbsoluteEncoderRad()))
 
-    def setDesiredState(self, desiredState: wpimath.kinematics.SwerveModuleState) -> None:
-        """Sets the desired state for the swerve module.
-        
-        :param desiredState: Desired state with speed and angle.
-        """
+    def getState(self) -> SwerveModuleState:
+        """Returns the current state of the module."""
+        return SwerveModuleState(self.getDriveVelocity(), Rotation2d(self.getTurningPosition()))
 
-        # correctedDesiredState = SwerveModuleState()
-        # correctedDesiredState.speed = desiredState.speed
-        # correctedDesiredState.angle = desiredState.angle + Rotation2d(self.chassisAngularOffset)
+    def setDesiredState(self, state:SwerveModuleState):
+        """Sets the desired state of the module."""
+        self.state = SwerveModuleState.optimize(state, self.getState().angle)
 
-        correctedDesiredState = SwerveModuleState(
-            desiredState.speed, 
-            desiredState.angle + Rotation2d(self.chassisAngularOffset)
-        )
-        # Send corrected state to NetworkTables
-        self.debugTable.putNumber("CorrectedSpeed", correctedDesiredState.speed)
-        self.debugTable.putNumber("CorrectedAngle", correctedDesiredState.angle.radians())
+        try:
+            self.driveMotor.set(self.state.speed / ModuleConstants.kmaxModuleVelocity)
+        except:
+            self.driveMotor.set(0)
 
-
-                # Optimize the reference state to avoid spinning further than 90 degrees.
-        optimizedDesiredState = SwerveModuleState.optimize(
-            correctedDesiredState, 
-            self.getState().angle)
-        # Optimize the reference state to avoid spinning further than 90 degrees.
-        #!~ self.getState().angle already accounts for the offset since angle comes from def getAbsoluteEncoderRad()
-        #desiredState = wpimath.kinematics.SwerveModuleState.optimize(desiredState, Rotation2d(self.turningEncoder.getPosition()))
-            # If optimization fails, log it
-        if optimizedDesiredState is None:
-            self.debugTable.putString("OptimizeError", "optimize() returned None!")
-            optimizedDesiredState = correctedDesiredState  # Fallback
-        
-        # Send optimized state to NetworkTables
-        self.debugTable.putNumber("OptimizedSpeed", optimizedDesiredState.speed)
-        self.debugTable.putNumber("OptimizedAngle", optimizedDesiredState.angle.radians())
-
-        # Send wheel vector data to NetworkTables for AdvantageScope visualization
-        moduleName = f"Module_{self.driveMotor.getDeviceId()}"  # Unique name per module
-        moduleTable = self.nt.getTable(f"SwerveModules/{moduleName}")
-
-        moduleTable.putNumber("Speed", optimizedDesiredState.speed)
-        moduleTable.putNumber("Angle", optimizedDesiredState.angle.radians())
-
-
-        
+        try:
+            self.turningMotor.set(self.turningPIDController.calculate(self.getAbsoluteEncoderRad(), self.state.angle.radians()))
+        except:
+            self.turningMotor.set(0)
     
-            # Command driving and turning SPARKS MAX towards their respective setpoints.
-        self.drivePIDController.setSetpoint(optimizedDesiredState.speed)
-        self.turningPIDController.setSetpoint(optimizedDesiredState.angle.radians())
-
-        # self.drivePIDController.setSetpoint(desiredState.speed, SparkMax.ControlType.kVelocity)
-
-        # self.turningPIDController.setSetpoint(desiredState.angle.radians(), SparkMax.ControlType.kPosition)
-
-        self.desiredState = desiredState
-        
-        
-        # try:
-        #     driveOutput = self.drivePIDController.calculate( #! error = optimizedState.speed - self.driveEncoder.getVelocity()
-        #         self.driveEncoder.getVelocity(),               #! driveOutput = kP(0.01) * error
-        #         desiredState.speed
-        #     )
-        #     driveFeedforward = self.driveFeedforward.calculate(desiredState.speed)
-        #     self.driveMotor.setVoltage(driveOutput + driveFeedforward)
-        # except Exception as e:
-        #     #print(f"Drive error: {e}")
-        #     self.driveMotor.setVoltage(0)
-    
-        # # Turning motor output
-        # try:
-        #     turnOutput = self.turningPIDController.calculate(
-        #         self.turningEncoder.getPosition() * ModuleConstants.kDistancePerRotation,
-        #         desiredState.angle.radians()
-        #     )
-        #     turnFeedforward = self.turnFeedforward.calculate(
-        #         self.turningPIDController.getSetpoint().velocity
-        #     )
-        #     self.turningMotor.setVoltage(turnOutput + turnFeedforward)
-        # except Exception as e:
-        #     #print(f"Turn error: {e}")
-        #     self.turningMotor.setVoltage(0)
-
-
-
-
-
-   
+    def stop(self):
+        """Stops the module."""
+        self.driveMotor.set(0)  
+        self.turningMotor.set(0)
