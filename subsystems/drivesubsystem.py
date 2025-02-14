@@ -12,7 +12,7 @@ from wpilib import DriverStation
 
 import wpilib
 
-from commands2 import Subsystem
+from commands2 import SubsystemBase
 from wpimath.filter import SlewRateLimiter
 from wpimath.geometry import Pose2d, Rotation2d
 from wpimath.kinematics import (
@@ -41,7 +41,7 @@ last_print_time = 0  # Global variable to track last print time
 
 
 
-class DriveSubsystem(commands2.SubsystemBase):
+class DriveSubsystem(SubsystemBase):
     """Represents the drive subsystem of the robot. """
 
     def __init__(self) -> None:
