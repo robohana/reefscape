@@ -5,6 +5,10 @@ This file contains the DriveSubsystem class, which represents the drive subsyste
 '''
 import math
 import typing
+import time
+import struct
+import threading
+from wpilib import DriverStation
 
 import wpilib
 
@@ -16,6 +20,7 @@ from wpimath.kinematics import (
     SwerveModuleState,
     SwerveDrive4Kinematics,
     SwerveDrive4Odometry,
+    SwerveModulePosition
 )
 
 from constants import ModuleConstants, RobotConstants, DrivingConstants
@@ -23,12 +28,37 @@ import swerveutils
 from .swervemodule import SwerveModule
 from navx import AHRS
 import navx
+from ntcore import NetworkTableInstance, StructPublisher, StructArrayPublisher
+import time
+import commands2
 
-class DriveSubsystem(Subsystem):
+
+
+
+last_print_time = 0  # Global variable to track last print time
+
+
+
+
+
+class DriveSubsystem(commands2.SubsystemBase):
     """Represents the drive subsystem of the robot. """
 
     def __init__(self) -> None:
         super().__init__()
+        self.sd = wpilib.SmartDashboard
+
+
+        self.nt = NetworkTableInstance.getDefault()
+        self.swerveTable = self.nt.getTable("Swerve")
+
+                #  **Create Struct Publishers for AdvantageScope**
+        self.moduleStatesPublisher: StructArrayPublisher = (
+            self.swerveTable.getStructArrayTopic("ModuleStates", SwerveModuleState).publish()
+        )
+        self.chassisSpeedsPublisher: StructPublisher = (
+            self.swerveTable.getStructTopic("ChassisSpeeds", ChassisSpeeds).publish()
+        )
 
         # Create swerve modules
         self.frontLeft = SwerveModule(RobotConstants.kfrontLeftDriveID, 
@@ -68,28 +98,42 @@ class DriveSubsystem(Subsystem):
         self.prevTime = wpilib.Timer.getFPGATimestamp()
 
         # Odometry class for tracking robot pose
-        self.odometry = SwerveDrive4Odometry(
-            DrivingConstants.kinematics,
-            Rotation2d.fromDegrees(self.gyro.getAngle()),
-            (
-                self.frontLeft.getPosition(),
-                self.frontRight.getPosition(),
-                self.backLeft.getPosition(),
-                self.backRight.getPosition(),
-            ),
-        )
+        self.odometry = SwerveDrive4Odometry(DrivingConstants.kinematics, Rotation2d(0), self.getModulePositionsOld())
+
+        thread = threading.Thread(target = self.zero_heading_after_delay)
+
+        thread.start()
+
     def periodic(self) -> None:
-        # Update the odometry in the periodic block
+        self.sd.putNumber("Gyro", self.getHeading())
         self.odometry.update(
-            Rotation2d.fromDegrees(self.gyro.getAngle()),
-            (
-                self.frontLeft.getPosition(),
-                self.frontRight.getPosition(),
-                self.backLeft.getPosition(),
-                self.backRight.getPosition(),
-            ),
-    )
+                            self.getRotation2d(), 
+                            (
+                            (SwerveModulePosition(self.frontLeft.getDrivePosition(), Rotation2d(self.frontLeft.getAbsoluteEncoderRad())),
+                            SwerveModulePosition(self.frontRight.getDrivePosition(), Rotation2d(self.frontRight.getAbsoluteEncoderRad())),
+                            SwerveModulePosition(self.backLeft.getDrivePosition(), Rotation2d(self.backLeft.getAbsoluteEncoderRad())),
+                            SwerveModulePosition(self.backRight.getDrivePosition(), Rotation2d(self.backRight.getAbsoluteEncoderRad())))
+                            )
+                            )
         
+        self.sd.putString("Robot Odometer", str(self.getModulePositionsOld()))
+        self.sd.putString("Robot Location, x", str(self.getPose().X()))
+        self.sd.putString("Robot Location, y", str(self.getPose().Y()))
+        self.sd.putString("Robot Location, rotation", str(self.getPose().rotation().degrees()))    
+
+
+
+
+
+    def zero_heading_after_delay(self):
+        try:
+            time.sleep(1)
+            self.gyro.reset()
+        except Exception as e:
+            pass
+    
+    
+    
     def getPose(self) -> Pose2d:
         """Returns the currently-estimated pose of the robot.
 
@@ -97,21 +141,16 @@ class DriveSubsystem(Subsystem):
         """
         return self.odometry.getPose()
 
-    def resetOdometry(self, pose: Pose2d) -> None:
-        """Resets the odometry to the specified pose.
-
-        :param pose: The pose to which to set the odometry.
-
-        """
+    def resetOdometry(self, pose: Pose2d):
         self.odometry.resetPosition(
-            Rotation2d.fromDegrees(self.gyro.getAngle()),
-            (
-                self.frontLeft.getPosition(),
-                self.frontRight.getPosition(),
-                self.backLeft.getPosition(),
-                self.backRight.getPosition(),
-            ),
-            pose,
+        self.getRotation2d(),
+        (
+            self.frontLeft.getSwerveModulePosition(),
+            self.frontRight.getSwerveModulePosition(),
+            self.backLeft.getSwerveModulePosition(),
+            self.backRight.getSwerveModulePosition()
+        ),
+        pose,
         )
 
     def drive(
@@ -131,6 +170,8 @@ class DriveSubsystem(Subsystem):
                                 field.
             :param rateLimit:     Whether to enable rate limiting for smoother control.
             """
+
+            print(f"Drive() Called - X:{xSpeed:.2f}, Y:{ySpeed:.2f}, Rot:{rot:.2f}")
 
             xSpeedCommanded = xSpeed
             ySpeedCommanded = ySpeed
@@ -239,6 +280,32 @@ class DriveSubsystem(Subsystem):
         self.backLeft.setDesiredState(rl)
         self.backRight.setDesiredState(rr)
 
+
+    def getModulePositionsOld(self) -> tuple[SwerveModulePosition, SwerveModulePosition,SwerveModulePosition,SwerveModulePosition]:
+        return (
+                SwerveModulePosition(self.frontLeft.getDrivePosition(), Rotation2d(self.frontLeft.getAbsoluteEncoderRad())),
+                SwerveModulePosition(self.frontRight.getDrivePosition(), Rotation2d(self.frontRight.getAbsoluteEncoderRad())),
+                SwerveModulePosition(self.backLeft.getDrivePosition(), Rotation2d(self.backLeft.getAbsoluteEncoderRad())),
+                SwerveModulePosition(self.backRight.getDrivePosition(), Rotation2d(self.backRight.getAbsoluteEncoderRad()))
+                )
+    def getModuleStates(self) -> tuple[SwerveModuleState, SwerveModuleState, SwerveModuleState, SwerveModuleState]:
+        return (
+            SwerveModuleState(self.frontLeft.getDriveVelocity(), Rotation2d(self.frontLeft.getAbsoluteEncoderRad())),
+                SwerveModuleState(self.frontRight.getDriveVelocity(), Rotation2d(self.frontRight.getAbsoluteEncoderRad())),
+                SwerveModuleState(self.backLeft.getDriveVelocity(), Rotation2d(self.backLeft.getAbsoluteEncoderRad())),
+                SwerveModuleState(self.backRight.getDriveVelocity(), Rotation2d(self.backRight.getAbsoluteEncoderRad()))
+        )
+
+    def getChassisSpeeds(self):
+        return DrivingConstants.kinematics.toChassisSpeeds(self.getModuleStates())
+    
+    def driveChassisSpeeds(self, chassisSpeeds: ChassisSpeeds):
+        self.setModuleStates(
+            DrivingConstants.kinematics.toSwerveModuleStates(chassisSpeeds)
+        )
+
+
+
     def resetEncoders(self) -> None:
         """Resets the drive encoders to currently read a position of 0."""
         self.frontLeft.resetEncoders()
@@ -258,6 +325,14 @@ class DriveSubsystem(Subsystem):
         """
         return Rotation2d.fromDegrees(self.gyro.getAngle()).degrees()
 
+    def getRotation2d(self) -> Rotation2d:
+        return Rotation2d.fromDegrees(self.getHeading())
+    
+        #^used when we are able to adjust gyro with apriltags
+    def setHeading(self, angle):
+        self.gyro.reset()
+        self.gyro.setAngleAdjustment(angle)
+
 
     def getTurnRate(self) -> float:
         """Returns the turn rate of the robot.
@@ -265,4 +340,67 @@ class DriveSubsystem(Subsystem):
         :returns: The turn rate of the robot, in degrees per second
         """
         return self.gyro.getRate() * (-1.0 if DrivingConstants.KGyroReversed else 1.0)
+    
+
+    def getRotation2d(self) -> Rotation2d:
+        return Rotation2d.fromDegrees(self.getHeading())
+        
+
+
+    def stop(self) -> None:
+        """Stops the module."""
+        self.drive(0, 0, 0, False, False)
+
+
+    def publishSwerveStates(self):
+        """Publishes swerve module states and chassis speeds to AdvantageScope using correct struct format."""
+        
+        global last_print_time
+        current_time = time.time()
+
+        # Get all module states
+        moduleStates = [
+            self.frontLeft.getState(),
+            self.frontRight.getState(),
+            self.backLeft.getState(),
+            self.backRight.getState(),
+        ]
+
+        #  **Publish `SwerveModuleState[]` as a structured array**
+        self.moduleStatesPublisher.set(moduleStates)
+
+        #  **Publish `ChassisSpeeds` as a structured object**
+        chassisSpeeds = DrivingConstants.kinematics.toChassisSpeeds(tuple(moduleStates))
+        self.chassisSpeedsPublisher.set(chassisSpeeds)
+
+        #  **Print only once per second**
+        if current_time - last_print_time >= 1.0:
+            print("Published Swerve Module States & Chassis Speeds (Struct Format)")
+            print(f"Publishing Swerve Module States: {moduleStates}")
+            print(f"Publishing Chassis Speeds: {chassisSpeeds}")
+            last_print_time = current_time  # Update last print time
+
+        #chassisSpeeds = DrivingConstants.kinematics.toChassisSpeeds(*moduleStates)
+
+
+
+        #  Use setStruct to publish structured data for AdvantageScope
+        self.swerveTable.getStructArrayTopic("ModuleStates", SwerveModuleState).publish().set(moduleStates)
+        self.swerveTable.getStructTopic("ChassisSpeeds", ChassisSpeeds).publish().set(chassisSpeeds)
+
+
+    def getModuleStates(self):
+        """Returns the current states of all swerve modules."""
+        return [
+            self.frontLeft.getState(),
+            self.frontRight.getState(),
+            self.backLeft.getState(),
+            self.backRight.getState(),
+        ]
+
+
+
+
+
+
 
