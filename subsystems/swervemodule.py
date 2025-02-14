@@ -28,7 +28,6 @@ class SwerveModule(commands2.SubsystemBase):
         self.debugTable = self.nt.getTable("SwerveDebug")
         print("NetworkTables started: SwerveDebug should be available")
 
-        self.absouteEncoderOffset = 0
 
         self.driveMotor = SparkMax(driveMotorChannel, SparkMax.MotorType.kBrushless)
         self.turningMotor = SparkMax(turningMotorChannel, SparkMax.MotorType.kBrushless)
@@ -65,13 +64,14 @@ class SwerveModule(commands2.SubsystemBase):
         driveMotorConfig.setIdleMode(SparkBaseConfig.IdleMode.kBrake)
         turnMotorConfig.setIdleMode(SparkBaseConfig.IdleMode.kBrake)
 
-        self.chassisAngularOffset = absouteEncoderOffset
         self.resetEncoders()
 
     def getAbsoluteEncoderRad(self) -> float:
         """Returns the absolute encoder position in radians minus the offset."""
-        angle = self.absEncoder.get()
-        angle *= math.tau  # convert to radians
+        raw = self.absEncoder.get()
+
+        full_scale = 1.0172 #average full-scale value from testing
+        angle = (raw / full_scale) * math.tau #convert normalized value to radians
         angle -= self.absoluteEncoderOffsetRad
         return angle
 
@@ -111,7 +111,7 @@ class SwerveModule(commands2.SubsystemBase):
     
     def optimizeState(self, desiredState: SwerveModuleState, currentAngle: Rotation2d) -> SwerveModuleState:
         delta = desiredState.angle - currentAngle
-        if abs(delta.radians) > math.pi / 2:
+        if abs(delta.radians()) > math.pi / 2:
             return SwerveModuleState(-desiredState.speed, desiredState.angle + Rotation2d(math.pi))
         return desiredState
 
