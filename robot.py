@@ -30,6 +30,12 @@ class MyRobot(commands2.TimedCommandRobot):
         self.robotDrive = self.container.robotDrive
         #CommandScheduler.getInstance().registerSubsystem(self.robotDrive)
 
+
+        wpilib.DataLogManager.start()  # Start logging
+        wpilib.DriverStation.startDataLog(wpilib.DataLogManager.getLog())  # Log joystick inputs
+        print("WPILib Data Logging Enabled")
+
+
     def robotPeriodic(self) -> None:
         CommandScheduler.getInstance().run()
 
@@ -41,6 +47,10 @@ class MyRobot(commands2.TimedCommandRobot):
 
     def autonomousInit(self) -> None:
         pass
+        #print("Starting Autonomous... ")
+        #self.autonomousCommand = self.container.getAutonomousCommand()
+        #if self.autonomousCommand is not None:
+        #    self.autonomousCommand.schedule()
 
     def autonomousPeriodic(self) -> None:
         pass
