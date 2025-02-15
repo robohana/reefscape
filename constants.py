@@ -19,6 +19,10 @@ class DrivingConstants:
     kMaxSpeedMetersPerSecond = 4.8
     kMaxAngularSpeed = math.tau  # radians per second
 
+    drivingSpeedLimiter = 1
+    rotationSpeedLimiter =1
+    kTeleopDriveMaxAccelerationMetersPerSecSquared = 3
+
     kDirectionSlewRate = 1.2  # radians per second
     kMagnitudeSlewRate = 1.8  # percent per second (1 = 100%)
     kRotationalSlewRate = 2.0  # percent per second (1 = 100%)
@@ -130,5 +134,4 @@ class AutoConstants:
     kMaxAngularSpeedRadiansPerSecond = math.pi
     kMaxAngularSpeedRadiansPerSecondSquared = math.pi
     
-
 
