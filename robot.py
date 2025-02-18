@@ -19,8 +19,7 @@ from subsystems.swervemodule import SwerveModule
 
 class MyRobot(commands2.TimedCommandRobot):
     def robotInit(self) -> None:
-        # Instantiate our RobotContainer.  This will perform all our button bindings, and put our
-        # autonomous chooser on the dashboard.
+        # Instantiate our RobotContainer.  
         self.container = RobotContainer()
         #self.autonomousCommand = None
 
@@ -29,6 +28,10 @@ class MyRobot(commands2.TimedCommandRobot):
         #self.drive = self.Container.drive
         self.robotDrive = self.container.robotDrive
         #CommandScheduler.getInstance().registerSubsystem(self.robotDrive)
+
+        global robotDrive #expose the drive subsystem globally (nothing can go wrong, right?)
+
+        robotDrive = self.robotDrive
 
 
         wpilib.DataLogManager.start()  # Start logging
