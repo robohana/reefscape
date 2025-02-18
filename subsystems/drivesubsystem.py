@@ -54,10 +54,13 @@ class DriveSubsystem(SubsystemBase):
 
                 #  **Create Struct Publishers for AdvantageScope**
         self.moduleStatesPublisher: StructArrayPublisher = (
-            self.swerveTable.getStructArrayTopic("ModuleStates", SwerveModuleState).publish()
+            self.swerveTable.getStructArrayTopic("Drive/Modules/States", SwerveModuleState).publish()
+        )
+        self.desiredModuleStatesPublisher: StructArrayPublisher = (
+            self.swerveTable.getStructArrayTopic("Drive/Modules/DesiredStates", SwerveModuleState).publish()
         )
         self.chassisSpeedsPublisher: StructPublisher = (
-            self.swerveTable.getStructTopic("ChassisSpeeds", ChassisSpeeds).publish()
+            self.swerveTable.getStructTopic("Drive/ChassisSpeeds", ChassisSpeeds).publish()
         )
 
         # Create swerve modules
@@ -122,6 +125,9 @@ class DriveSubsystem(SubsystemBase):
         self.sd.putString("Robot Location, rotation", str(self.getPose().rotation().degrees()))    
 
 
+
+        # Publish swerve module states and chassis speeds for AdvantageScope
+        #self.publishSwerveStates()
 
 
 
@@ -273,7 +279,7 @@ class DriveSubsystem(SubsystemBase):
         :param desiredStates: The desired SwerveModule states.
         """
         fl, fr, rl, rr = SwerveDrive4Kinematics.desaturateWheelSpeeds(
-            desiredStates, ModuleConstants.kmaxModuleVelocity
+            desiredStates, ModuleConstants.kmaxModuleVelocityMetersPerSec
         )
         self.frontLeft.setDesiredState(fl)
         self.frontRight.setDesiredState(fr)
@@ -368,6 +374,13 @@ class DriveSubsystem(SubsystemBase):
 
         #  **Publish `SwerveModuleState[]` as a structured array**
         self.moduleStatesPublisher.set(moduleStates)
+
+        self.desiredModuleStatesPublisher.set([
+            self.frontLeft.getDesiredState(),
+            self.frontRight.getDesiredState(),
+            self.backLeft.getDesiredState(),
+            self.backRight.getDesiredState()
+        ])
 
         #  **Publish `ChassisSpeeds` as a structured object**
         chassisSpeeds = DrivingConstants.kinematics.toChassisSpeeds(tuple(moduleStates))
