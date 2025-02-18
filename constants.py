@@ -5,10 +5,45 @@ import math
 from wpimath.filter import SlewRateLimiter
 from wpimath.geometry import Translation2d
 from wpimath.kinematics import SwerveDrive4Kinematics
-from wpimath import kinematics
+from wpimath import kinematics, units
 
 
 
+class ModuleConstants:
+    # Constants for the swerve module 
+
+    kWheelDiameterMeters = units.inchesToMeters(4) # ~ 0.1016 # wheel listed as "Wheel, Billet, 4"OD x 1.5"W (MK4/4i)""
+    kWheelRadiusMeters = kWheelDiameterMeters / 2 # ~ 0.0508
+    
+    kEncoderResolution = 4096 # from thrifty bot abs enc user manual
+
+    kDriveMotorGearRatio = 1 / 6.12 #gear ratio from SwerveSpecialties website
+
+    kTurningEncoderGearRatio = 1 / (150 / 7) #gear ratio from SwerveSpecialties website
+
+    #kDistancePerRotation = math.tau / kEncoderResolution
+    #kPositionConversionFactor = math.tau * kWheelRadius / kEncoderResolution
+
+    kDriveEncoderRot2Meter = kDriveMotorGearRatio * math.pi * kWheelDiameterMeters
+    kTurningEncoderRot2Rad = kTurningEncoderGearRatio * math.pi * 2
+
+    kDriveEncoderRPM2MeterPerSec = kDriveEncoderRot2Meter / 60
+    kTurningEncoderRPM2RadPerSec = kTurningEncoderRot2Rad / 60
+
+
+    # kDriveP = 0.1
+    # kDriveI = 0
+    # kDriveD = 0
+
+    kDrivekS = 0.1
+    kDrivekV = 1
+
+    kPTurning = 0.01
+    kITurning = 0
+    KDTurning = 0
+
+    kTurningkS = 0.1
+    kTurningkV = 0.227
 
 
 #~ driving constants
@@ -16,16 +51,17 @@ class DrivingConstants:
 
     # Driving Parameters - Note that these are not the maximum capable speeds of
     # the robot, rather the allowed maximum speeds
-    kMaxSpeedMetersPerSecond = 4.8
-    kMaxAngularSpeed = math.tau  # radians per second
+    # kMaxSpeedMetersPerSecond = 4.8 # where is this from or how did we calculate it?
+    # kMaxAngularSpeed = math.tau  # radians per second
 
     kDirectionSlewRate = 1.2  # radians per second
     kMagnitudeSlewRate = 1.8  # percent per second (1 = 100%)
     kRotationalSlewRate = 2.0  # percent per second (1 = 100%)
 
-    kTrackWidth = 0.584 #meters
-     # Distance between centers of right and left wheels on robot
-    kWheelBase = 0.584 #meters
+    kTrackWidth = units.inchesToMeters(23) # ~0.584m
+     # Distance between centers of right and left wheels
+    kWheelBase = units.inchesToMeters(23) # ~0.584m
+     # Distance between centers of front and back wheels
 
 
     frontLeftLocation = Translation2d(kWheelBase / 2 , kTrackWidth / 2) 
@@ -40,68 +76,29 @@ class DrivingConstants:
         backRightLocation)
 
     KGyroReversed = False
-    kTeleopDriveMaxAccelerationMetersPerSecSquared = 3
+
+    kPhysicalMaxSpeedFeetPerSecond = 16.6 #ft/s from SwerveSpecialties website
+    kPhysicalMaxSpeedMetersPerSecond  = kPhysicalMaxSpeedFeetPerSecond/ 3.281 # ~ 5.05968m/s #m/s #ModuleMaxSpeedFTPerSec / 3.281
+    kPhysicalMaxAngularVelocityMetersPerSecond = kPhysicalMaxSpeedMetersPerSecond  /  ModuleConstants.kWheelRadiusMeters #rad/s #v max / wheel radius -JL on 2/6/25
+
+    kTeleDriveMaxSpeedMetersPerSecond = kPhysicalMaxSpeedMetersPerSecond / 1 # this will need to be adjusted
+    kTeleDriveMaxAngularSpeedRadiansPerSecond = (kPhysicalMaxSpeedMetersPerSecond  * 2 / ModuleConstants.kWheelDiameterMeters) / 2 #rad/s
+    kTeleDriveMaxAccelerationMetersPerSecSquared = 3 # need to be adjusted
+    kTeleDriveMaxAngularAccelerationUnitsPerSecond = 3 # need to be adjusted
+    
     drivingSpeedLimiter = 1
     rotationSpeedLimiter = 1
     voltageLimiter = SlewRateLimiter(0.5)
 
 class OIConstants:
     # Constants for the Operator Interface
+
     kDriverControllerPort = 0
     kOperatorControllerPort = 1
-    deadzone = 0.2
-
-
-
-class ModuleConstants:
-    # Constants for the swerve module 
-    kWheelRadius = 0.0508
-    kWheelDiameter = 0.1016
-    kEncoderResolution = 4096
-    kJoystickDeadband = 0.1  # Deadband for joystick inputs 
-    #kDistancePerRotation = math.tau / kEncoderResolution
-    #kPositionConversionFactor = math.tau * kWheelRadius / kEncoderResolution
-    
-    ModuleMaxSpeedFTPerSec = 16.6 #ft/s from SwerveSpecialties website
-    kmaxModuleVelocityMetersPerSec = 5.05968 #m/s #ModuleMaxSpeedFTPerSec / 3.281
-    kmaxModuleAngularVelocity = kmaxModuleVelocityMetersPerSec /  kWheelRadius #rad/s #v max / wheel radius -JL on 2/6/25
-    kmaxModuleAngularAcceleration = (kmaxModuleVelocityMetersPerSec * 2 / kWheelDiameter)/2 #rad/s^2
-
-    kDriveMotorGearRatio = 1 / 6.12 #gear ratio from SwerveSpecialties website
-
-    kTurningEncoderGearRatio = 1 / (150 / 7) #gear ratio from SwerveSpecialties website
-
-    kDriveEncoderRot2Meter = kDriveMotorGearRatio * math.pi * kWheelDiameter
-    kTurningEncoderRot2Rad = kTurningEncoderGearRatio * math.pi * 2
-
-    kDriveEncoderRPM2MeterPerSec = kDriveEncoderRot2Meter / 60
-    kTurningEncoderRPM2RadPerSec = kTurningEncoderRot2Rad / 60
-
-
-
-    kDriveP = 0.1
-    kDriveI = 0
-    kDriveD = 0
-
-    kPTurning = 0.01
-    kITurning = 0
-    KDTurning = 0
-
-    kDrivekS = 0.1
-    kDrivekV = 1
-
-    kTurningkS = 0.1
-    kTurningkV = 0.227
-    
-
-
-
-
+    deadzone = 0.1
 
 
 class RobotConstants:
-
-
     # Drivetrain Constants
     
     kfrontLeftDriveID = 20
@@ -117,7 +114,7 @@ class RobotConstants:
     frontRightAbsoluteEncoderId = 0
     frontRightDrivingMotorReversed = True
     frontRightTurningMotorReversed = False
-    frontRightAbsoluteEncoderOffset = 0  #recalibrate this value
+    frontRightAbsoluteEncoderOffset = -math.pi / 2  #recalibrate this value
     frontRightAbsoluteEncoderReversed = False #TODO: check if this is correct -JL on 2/3/25
     
     kbackLeftDriveID = 24
@@ -125,7 +122,7 @@ class RobotConstants:
     backLeftAbsoluteEncoderId = 2
     backLeftDrivingMotorReversed = False
     backLeftTurningMotorReversed = False
-    backLeftAbsoluteEncoderOffset = math.pi #recalibrate this value
+    backLeftAbsoluteEncoderOffset = -math.pi / 2 #recalibrate this value
     backLeftAbsoluteEncoderReversed = False #TODO: check if this is correct -JL on 2/3/25
     
     kbackRightDriveID = 21
@@ -133,7 +130,7 @@ class RobotConstants:
     backRightAbsoluteEncoderId = 1
     backRightDrivingMotorReversed = True
     backRightTurningMotorReversed = False
-    backRightAbsoluteEncoderOffset = math.pi / 2 #recalibrate this value
+    backRightAbsoluteEncoderOffset = -math.pi / 2 #recalibrate this value
     backRightAbsoluteEncoderReversed = False #TODO: check if this is correct -JL on 2/3/25
 
 class AutoConstants:
@@ -142,5 +139,4 @@ class AutoConstants:
     kMaxAngularSpeedRadiansPerSecond = math.pi
     kMaxAngularSpeedRadiansPerSecondSquared = math.pi
     
-
 
