@@ -110,14 +110,14 @@ class DriveSubsystem(SubsystemBase):
     def periodic(self) -> None:
         self.sd.putNumber("Gyro", self.getHeading())
         self.odometry.update(
-                            self.getRotation2d(), 
-                            (
-                            (SwerveModulePosition(self.frontLeft.getDrivePosition(), Rotation2d(self.frontLeft.getAbsoluteEncoderRad())),
-                            SwerveModulePosition(self.frontRight.getDrivePosition(), Rotation2d(self.frontRight.getAbsoluteEncoderRad())),
-                            SwerveModulePosition(self.backLeft.getDrivePosition(), Rotation2d(self.backLeft.getAbsoluteEncoderRad())),
-                            SwerveModulePosition(self.backRight.getDrivePosition(), Rotation2d(self.backRight.getAbsoluteEncoderRad())))
-                            )
-                            )
+            self.getRotation2d(), 
+                (       
+                    SwerveModulePosition(self.frontLeft.getDrivePosition(), Rotation2d(self.frontLeft.getAbsoluteEncoderRad())),
+                    SwerveModulePosition(self.frontRight.getDrivePosition(), Rotation2d(self.frontRight.getAbsoluteEncoderRad())),
+                    SwerveModulePosition(self.backLeft.getDrivePosition(), Rotation2d(self.backLeft.getAbsoluteEncoderRad())),
+                    SwerveModulePosition(self.backRight.getDrivePosition(), Rotation2d(self.backRight.getAbsoluteEncoderRad()))    
+                )
+        )
         
         self.sd.putString("Robot Odometer", str(self.getModulePositionsOld()))
         self.sd.putString("Robot Location, x", str(self.getPose().X()))
@@ -136,7 +136,8 @@ class DriveSubsystem(SubsystemBase):
             time.sleep(1)
             self.gyro.reset()
         except Exception as e:
-            pass
+            print(f"Error resetting gyro: {e}")
+
     
     
     
@@ -246,9 +247,9 @@ class DriveSubsystem(SubsystemBase):
                 self.currentRotation = rot
 
             # Convert the commanded speeds into the correct units for the drivetrain
-            xSpeedDelivered = xSpeedCommanded * DrivingConstants.kMaxSpeedMetersPerSecond
-            ySpeedDelivered = ySpeedCommanded * DrivingConstants.kMaxSpeedMetersPerSecond
-            rotDelivered = self.currentRotation * DrivingConstants.kMaxAngularSpeed
+            xSpeedDelivered = xSpeedCommanded * DrivingConstants.kTeleDriveMaxSpeedMetersPerSecond
+            ySpeedDelivered = ySpeedCommanded * DrivingConstants.kTeleDriveMaxSpeedMetersPerSecond
+            rotDelivered = self.currentRotation * DrivingConstants.kTeleDriveMaxAngularSpeedRadiansPerSecond
 
             swerveModuleStates = DrivingConstants.kinematics.toSwerveModuleStates(
                 ChassisSpeeds.fromFieldRelativeSpeeds(
@@ -261,7 +262,7 @@ class DriveSubsystem(SubsystemBase):
                 else ChassisSpeeds(xSpeedDelivered, ySpeedDelivered, rotDelivered)
             )
             fl, fr, rl, rr = SwerveDrive4Kinematics.desaturateWheelSpeeds(
-                swerveModuleStates, DrivingConstants.kMaxSpeedMetersPerSecond
+                swerveModuleStates, DrivingConstants.kTeleDriveMaxSpeedMetersPerSecond
             )
             self.frontLeft.setDesiredState(fl)
             self.frontRight.setDesiredState(fr)
@@ -279,7 +280,7 @@ class DriveSubsystem(SubsystemBase):
         :param desiredStates: The desired SwerveModule states.
         """
         fl, fr, rl, rr = SwerveDrive4Kinematics.desaturateWheelSpeeds(
-            desiredStates, ModuleConstants.kmaxModuleVelocityMetersPerSec
+            desiredStates, DrivingConstants.kPhysicalMaxAngularVelocityMetersPerSecond
         )
         self.frontLeft.setDesiredState(fl)
         self.frontRight.setDesiredState(fr)
@@ -330,6 +331,8 @@ class DriveSubsystem(SubsystemBase):
         :returns: the robot's heading in degrees, from -180 to 180
         """
         return Rotation2d.fromDegrees(self.gyro.getAngle()).degrees()
+        #return Rotation2d.fromDegrees(self.gyro.getAngle() * (-1.0 if DrivingConstants.KGyroReversed else 1.0)).degrees()
+
 
     def getRotation2d(self) -> Rotation2d:
         return Rotation2d.fromDegrees(self.getHeading())
@@ -410,7 +413,6 @@ class DriveSubsystem(SubsystemBase):
             self.backLeft.getState(),
             self.backRight.getState(),
         ]
-
 
 
 
