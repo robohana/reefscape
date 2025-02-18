@@ -19,10 +19,6 @@ class DrivingConstants:
     kMaxSpeedMetersPerSecond = 4.8
     kMaxAngularSpeed = math.tau  # radians per second
 
-    drivingSpeedLimiter = 1
-    rotationSpeedLimiter = 1
-    kTeleopDriveMaxAccelerationMetersPerSecSquared = 3
-
     kDirectionSlewRate = 1.2  # radians per second
     kMagnitudeSlewRate = 1.8  # percent per second (1 = 100%)
     kRotationalSlewRate = 2.0  # percent per second (1 = 100%)
@@ -33,9 +29,9 @@ class DrivingConstants:
 
 
     frontLeftLocation = Translation2d(kWheelBase / 2 , kTrackWidth / 2) 
-    frontRightLocation = Translation2d(kWheelBase / 2 , kTrackWidth / 2)
-    backLeftLocation = Translation2d(kWheelBase / 2 , kTrackWidth / 2)
-    backRightLocation =  Translation2d(kWheelBase / 2 , kTrackWidth / 2)
+    frontRightLocation = Translation2d(kWheelBase / 2 , -kTrackWidth / 2)
+    backLeftLocation = Translation2d(-kWheelBase / 2 , kTrackWidth / 2)
+    backRightLocation =  Translation2d(-kWheelBase / 2 , -kTrackWidth / 2)
 
     kinematics = kinematics.SwerveDrive4Kinematics(
         frontLeftLocation,
@@ -44,12 +40,16 @@ class DrivingConstants:
         backRightLocation)
 
     KGyroReversed = False
+    kTeleopDriveMaxAccelerationMetersPerSecSquared = 3
+    drivingSpeedLimiter = 1
+    rotationSpeedLimiter = 1
+    voltageLimiter = SlewRateLimiter(0.5)
 
 class OIConstants:
     # Constants for the Operator Interface
     kDriverControllerPort = 0
     kOperatorControllerPort = 1
-    deadzone = 0.1
+    deadzone = 0.2
 
 
 
@@ -59,23 +59,31 @@ class ModuleConstants:
     kWheelDiameter = 0.1016
     kEncoderResolution = 4096
     kJoystickDeadband = 0.1  # Deadband for joystick inputs 
-    kDistancePerRotation = math.tau / kEncoderResolution
-    kPositionConversionFactor = math.tau * kWheelRadius / kEncoderResolution
+    #kDistancePerRotation = math.tau / kEncoderResolution
+    #kPositionConversionFactor = math.tau * kWheelRadius / kEncoderResolution
     
+    ModuleMaxSpeedFTPerSec = 16.6 #ft/s from SwerveSpecialties website
+    kmaxModuleVelocityMetersPerSec = 5.05968 #m/s #ModuleMaxSpeedFTPerSec / 3.281
+    kmaxModuleAngularVelocity = kmaxModuleVelocityMetersPerSec /  kWheelRadius #rad/s #v max / wheel radius -JL on 2/6/25
+    kmaxModuleAngularAcceleration = (kmaxModuleVelocityMetersPerSec * 2 / kWheelDiameter)/2 #rad/s^2
 
-    kmaxModuleVelocity = 5.09/2 #m/s #5820 * pi * wheel diameter / 60 * gear ratio (6.12)
-    kmaxModuleAngularVelocity = 100.10 / 20 #rad/s #v max / wheel radius -JL on 2/6/25
-    kmaxModuleAngularAcceleration = (kmaxModuleVelocity * 2 / kWheelDiameter)/2 #rad/s^2
+    kDriveMotorGearRatio = 1 / 6.12 #gear ratio from SwerveSpecialties website
 
-    kdriveFactor = 6.12 #! check this!
+    kTurningEncoderGearRatio = 1 / (150 / 7) #gear ratio from SwerveSpecialties website
 
-    kturnFactor = math.tau
+    kDriveEncoderRot2Meter = kDriveMotorGearRatio * math.pi * kWheelDiameter
+    kTurningEncoderRot2Rad = kTurningEncoderGearRatio * math.pi * 2
+
+    kDriveEncoderRPM2MeterPerSec = kDriveEncoderRot2Meter / 60
+    kTurningEncoderRPM2RadPerSec = kTurningEncoderRot2Rad / 60
+
+
 
     kDriveP = 0.1
     kDriveI = 0
     kDriveD = 0
 
-    kPTurning = 0.1
+    kPTurning = 0.01
     kITurning = 0
     KDTurning = 0
 
@@ -134,4 +142,5 @@ class AutoConstants:
     kMaxAngularSpeedRadiansPerSecond = math.pi
     kMaxAngularSpeedRadiansPerSecondSquared = math.pi
     
+
 
